@@ -1,0 +1,3 @@
+unami.ziyixi.science {
+        reverse_proxy * unami:3000
+}

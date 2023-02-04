@@ -1,0 +1,47 @@
+version: "3.8"
+# * =============================================== global networks and volumes =============================================== * #
+networks:
+  caddy:
+
+volumes: {}
+
+services:
+  # * =============================================== caddy =============================================== * #
+  caddy:
+    image: caddy:latest
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./env/Caddyfile:/etc/caddy/Caddyfile
+      - ./data/caddy:/data
+      - ./config/caddy:/config
+    networks:
+      - caddy
+
+  # * =============================================== unami =============================================== * #
+  unami:
+    image: ghcr.io/umami-software/umami:postgresql-latest
+    environment:
+      DATABASE_URL: postgresql://umami:umami@unami-db:5432/umami
+      DATABASE_TYPE: postgresql
+      HASH_SALT: randomhashsalt
+    depends_on:
+      - unami-db
+    restart: always
+    networks:
+      - caddy
+
+  unami-db:
+    image: postgres:12-alpine
+    environment:
+      POSTGRES_DB: umami
+      POSTGRES_USER: umami
+      POSTGRES_PASSWORD: umami
+    volumes:
+      - ./env/unami.schema.postgresql.sql:/docker-entrypoint-initdb.d/schema.postgresql.sql:ro
+      - ./data/umami:/var/lib/postgresql/data
+    restart: always
+    networks:
+      - caddy
