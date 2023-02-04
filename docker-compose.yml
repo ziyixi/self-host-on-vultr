@@ -61,7 +61,7 @@ services:
       - BASE_URL=https://changedetection.ziyixi.science
       - USE_X_SETTINGS=1
       - FETCH_WORKERS=2
-    restart: unless-stopped
+    restart: always
     networks:
       - caddy
       - changedetection
@@ -76,6 +76,18 @@ services:
       - SCREEN_DEPTH=24
     volumes:
       - /dev/shm:/dev/shm
-    restart: unless-stopped
+    restart: always
     networks:
       - changedetection
+
+  # * =============================================== smf =============================================== * #
+  smf:
+    image: zixia/simple-mail-forwarder:latest
+    container_name: smf-app
+    env_file: ./env/smf.env
+    volumes:
+      - ./data/smf:/etc/postfix/cert/
+      - ./config/smf:/var/db/dkim/
+    restart: always
+    ports:
+      - 25:25
