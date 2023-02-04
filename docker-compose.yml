@@ -91,3 +91,14 @@ services:
     restart: always
     ports:
       - 25:25
+
+  # * =============================================== backup =============================================== * #
+  backup:
+    image: offen/docker-volume-backup:latest
+    restart: always
+    env_file: ./env/backup.env
+    volumes:
+      - ./data:/backup/data:ro
+      - ./config:/backup/config:ro
+      - ./env:/backup/env:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
