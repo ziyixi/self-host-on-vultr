@@ -2,6 +2,9 @@ version: "3.8"
 # * =============================================== global networks and volumes =============================================== * #
 networks:
   caddy:
+  unami:
+  changedetection:
+
 
 volumes: {}
 
@@ -32,6 +35,7 @@ services:
     restart: always
     networks:
       - caddy
+      - unami
 
   unami-db:
     image: postgres:12-alpine
@@ -44,4 +48,34 @@ services:
       - ./data/umami:/var/lib/postgresql/data
     restart: always
     networks:
+      - unami
+
+  # * =============================================== changedetection =============================================== * #
+  changedetection:
+    image: ghcr.io/dgtlmoon/changedetection.io:latest
+    container_name: changedetection
+    hostname: changedetection
+    volumes:
+      - ./data/changedetection:/datastore
+    environment:
+      - BASE_URL=https://changedetection.ziyixi.science
+      - USE_X_SETTINGS=1
+      - FETCH_WORKERS=2
+    restart: unless-stopped
+    networks:
       - caddy
+      - changedetection
+
+  browser-chrome:
+    hostname: browser-chrome
+    image: selenium/standalone-chrome-debug:latest
+    environment:
+      - VNC_NO_PASSWORD=1
+      - SCREEN_WIDTH=1920
+      - SCREEN_HEIGHT=1080
+      - SCREEN_DEPTH=24
+    volumes:
+      - /dev/shm:/dev/shm
+    restart: unless-stopped
+    networks:
+      - changedetection
