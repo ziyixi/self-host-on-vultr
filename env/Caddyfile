@@ -1,3 +1,7 @@
 unami.ziyixi.science {
         reverse_proxy * unami:3000
 }
+
+changedetection.ziyixi.science {
+        reverse_proxy * changedetection:5000
+}
