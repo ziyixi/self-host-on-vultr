@@ -89,6 +89,8 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     env_file: ./env/flame.env
     restart: always
+    networks:
+      - caddy
 
   # * =============================================== backup =============================================== * #
   backup:
