@@ -80,18 +80,6 @@ services:
     networks:
       - changedetection
 
-  # * =============================================== smf =============================================== * #
-  smf:
-    image: zixia/simple-mail-forwarder:latest
-    container_name: smf-app
-    env_file: ./env/smf.env
-    volumes:
-      - ./data/smf:/etc/postfix/cert/
-      - ./config/smf:/var/db/dkim/
-    restart: always
-    ports:
-      - 25:25
-
   # * =============================================== backup =============================================== * #
   backup:
     image: offen/docker-volume-backup:latest
