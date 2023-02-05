@@ -80,6 +80,16 @@ services:
     networks:
       - changedetection
 
+  # * =============================================== flame =============================================== * #
+  flame:
+    image: pawelmalak/flame:latest
+    container_name: flame
+    volumes:
+      - ./data/flame:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    env_file: ./env/flame.env
+    restart: always
+
   # * =============================================== backup =============================================== * #
   backup:
     image: offen/docker-volume-backup:latest
