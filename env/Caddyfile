@@ -1,11 +1,11 @@
 unami.ziyixi.science {
-        reverse_proxy * unami:3000
+	reverse_proxy * unami:3000
 }
 
 changedetection.ziyixi.science {
-        reverse_proxy * changedetection:5000
+	reverse_proxy * changedetection:5000
 }
 
 dashboard.ziyixi.science {
-        reverse_proxy * flame:5005
+	reverse_proxy * flame:5005
 }
