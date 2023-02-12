@@ -80,6 +80,17 @@ services:
     networks:
       - changedetection
 
+  # * =============================================== frp =============================================== * #
+  frp:
+    # ref: https://calxu.github.io/note/20200301_vpn_2/
+    image: snowdreamtech/frps:latest
+    container_name: frp
+    restart: always
+    network_mode: host
+    volumes:
+      - ./env/frps.ini:/etc/frp/frps.ini
+      - ./data/frp/frps.log:/log/frps.log
+
   # * =============================================== flame =============================================== * #
   flame:
     image: pawelmalak/flame:latest

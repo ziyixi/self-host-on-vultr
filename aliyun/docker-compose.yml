@@ -1,38 +1,24 @@
 version: "3.8"
-# * =============================================== global networks and volumes =============================================== * #
-networks:
-  caddy:
 
 services:
-  # * =============================================== caddy =============================================== * #
-  caddy:
-    image: caddy:latest
-    restart: always
-    container_name: caddy
+  # * =============================================== shadowsocks =============================================== * #
+  shadowsocks:
+    image: shadowsocks/shadowsocks-libev
     ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./env/Caddyfile:/etc/caddy/Caddyfile
-      - ./env/index.html:/web/index.html
-      - ./data/caddy:/data
-      - ./config/caddy:/config
-    networks:
-      - caddy
+      - "8388:8388"
+    environment:
+      - METHOD=aes-256-gcm
+      - PASSWORD=changemelater
+      - TIMEOUT=30000
+    restart: always
 
-  # * =============================================== ss =============================================== * #
-  # ss:
-  #   image: acrisliu/shadowsocks-libev:latest
-  #   restart: always
-  #   container_name: ss
-  #   depends_on:
-  #     - caddy
-  #   environment:
-  #     - PASSWORD=GiveMePassWord
-  #     - ARGS=--plugin v2ray-plugin --plugin-opts server;mode=quic;host=ss.ziyixi.science;cert=/caddy/ss.ziyixi.science.crt;key=/caddy/ss.ziyixi.science.key
-  #     - SERVER_PORT=9999
-  #     - METHOD=aes-256-gcm
-  #   volumes:
-  #     - ./data/caddy/caddy/certificates/acme-v02.api.letsencrypt.org-directory/ss.ziyixi.science:/caddy
-  #   networks:
-  #       - caddy
+  # * =============================================== frp =============================================== * #
+  frp:
+    # ref: https://calxu.github.io/note/20200301_vpn_2/
+    image: snowdreamtech/frpc:latest
+    container_name: frp
+    restart: always
+    network_mode: host
+    volumes:
+      - ./env/frpc.ini:/etc/frp/frpc.ini
+      - ./data/frpc.log:/log/frpc.log
