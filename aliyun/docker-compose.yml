@@ -28,10 +28,10 @@ services:
       - caddy
     environment:
       - PASSWORD=GiveMePassWord
-      - ARGS=--plugin v2ray-plugin --plugin-opts server;mode=quic;host=vpn.ziyixi.science;cert=/caddy/vpn.ziyixi.science.crt;key=/caddy/vpn.ziyixi.science.key
+      - ARGS=--plugin v2ray-plugin --plugin-opts server;mode=quic;host=ss.ziyixi.science;cert=/caddy/ss.ziyixi.science.crt;key=/caddy/ss.ziyixi.science.key
       - SERVER_PORT=9999
       - METHOD=aes-256-gcm
     volumes:
-      - ./data/caddy/caddy/certificates/acme-v02.api.letsencrypt.org-directory/vpn.ziyixi.science:/caddy
+      - ./data/caddy/caddy/certificates/acme-v02.api.letsencrypt.org-directory/ss.ziyixi.science:/caddy
     networks:
         - caddy
