@@ -15,6 +15,7 @@ services:
     volumes:
       - ./env/Caddyfile:/etc/caddy/Caddyfile
       - ./env/index.html:/var/www/vpn.ziyixi.science/index.html
+      - ./data/caddy:/data
       - ./config/caddy:/config
     networks:
       - caddy
