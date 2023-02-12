@@ -24,6 +24,8 @@ services:
     image: acrisliu/shadowsocks-libev:latest
     restart: always
     container_name: ss
+    depends_on:
+      - caddy
     environment:
       - PASSWORD=GiveMePassWord
       - ARGS=--plugin v2ray-plugin --plugin-opts server;mode=quic;host=vpn.ziyixi.science;cert=/caddy/vpn.ziyixi.science.crt;key=/caddy/vpn.ziyixi.science.key
