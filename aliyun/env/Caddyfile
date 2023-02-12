@@ -1,4 +1,4 @@
 vpn.ziyixi.science {
-	root / /var/www/vpn.ziyixi.science
+	root * /var/www/vpn.ziyixi.science
 	reverse_proxy /v2ray ss:9999
 }

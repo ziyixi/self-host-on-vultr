@@ -17,7 +17,6 @@ services:
       - ./env/index.html:/var/www/vpn.ziyixi.science/index.html
       - ./data/caddy:/data
       - ./config/caddy:/config
-      - ./secret:/var/lib/caddy/.local/share/caddy/certificates/acme-v02.api.letsencrypt.org-directory/vpn.ziyixi.science
     networks:
       - caddy
 
@@ -26,14 +25,12 @@ services:
     image: acrisliu/shadowsocks-libev:latest
     restart: always
     container_name: ss
-    depends_on:
-      - caddy
     environment:
       - PASSWORD=GiveMePassWord
       - ARGS=--plugin v2ray-plugin --plugin-opts server;mode=quic;host=vpn.ziyixi.science;path=/v2ray;cert=/caddy/vpn.ziyixi.science.crt;key=/caddy/vpn.ziyixi.science.key
       - SERVER_PORT=9999
       - METHOD=aes-256-gcm
     volumes:
-      - ./secret:/caddy
+      - ./data/caddy/caddy/certificates/acme-v02.api.letsencrypt.org-directory/vpn.ziyixi.science:/caddy
     networks:
         - caddy
