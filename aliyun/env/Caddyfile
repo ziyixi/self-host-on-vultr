@@ -1,8 +1,4 @@
 vpn.ziyixi.science {
-	root /var/www/vpn.ziyixi.science
-	tls ss-v2r@ziyixi.science
-	proxy /v2ray ss:9999 {
-		websocket
-		header_upstream -Origin
-	}
+	root / /var/www/vpn.ziyixi.science
+	reverse_proxy /v2ray ss:9999
 }
