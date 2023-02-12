@@ -1,3 +1,4 @@
-ss.ziyixi.science {
-	reverse_proxy * ss:9999
+v.ziyixi.science {
+	# reverse_proxy * ss:9999
+	root * /web
 }
