@@ -21,3 +21,4 @@ services:
     restart: always
     volumes:
       - ./env/frpc.ini:/etc/frp/frpc.ini
+      - ./data/frpc.log:/log/frpc.log

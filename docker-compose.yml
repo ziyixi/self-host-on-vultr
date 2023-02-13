@@ -91,6 +91,7 @@ services:
       - "7000:7000"
     volumes:
       - ./env/frps.ini:/etc/frp/frps.ini
+      - ./data/frps.log:/log/frps.log
 
   # * =============================================== flame =============================================== * #
   flame:
