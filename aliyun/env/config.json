@@ -1,0 +1,9 @@
+{
+    "server":"0.0.0.0",
+    "server_port":8388,
+    "password":"password0",
+    "timeout":30000,
+    "method":"aes-256-gcm",
+    "fast_open":true,
+    "mode":"tcp_and_udp"
+}
