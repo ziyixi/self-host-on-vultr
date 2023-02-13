@@ -17,7 +17,6 @@ services:
     image: snowdreamtech/frpc:latest
     container_name: frp
     ports:
-      - "12345:12345"
       - "7000:7000"
     restart: always
     volumes:
