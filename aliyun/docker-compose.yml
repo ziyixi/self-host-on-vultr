@@ -21,4 +21,3 @@ services:
     network_mode: host
     volumes:
       - ./env/frpc.ini:/etc/frp/frpc.ini
-      - ./data/frpc.log:/log/frpc.log

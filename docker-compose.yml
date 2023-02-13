@@ -89,7 +89,6 @@ services:
     network_mode: host
     volumes:
       - ./env/frps.ini:/etc/frp/frps.ini
-      - ./data/frp/frps.log:/log/frps.log
 
   # * =============================================== flame =============================================== * #
   flame:
