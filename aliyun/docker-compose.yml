@@ -18,6 +18,5 @@ services:
     image: snowdreamtech/frpc:latest
     container_name: frp
     restart: always
-    network_mode: host
     volumes:
       - ./env/frpc.ini:/etc/frp/frpc.ini
