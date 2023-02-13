@@ -86,7 +86,9 @@ services:
     image: snowdreamtech/frps:latest
     container_name: frp
     restart: always
-    network_mode: host
+    ports:
+      - "12345:12345"
+      - "7000:7000"
     volumes:
       - ./env/frps.ini:/etc/frp/frps.ini
 
