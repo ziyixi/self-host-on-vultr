@@ -4,7 +4,9 @@ services:
   # * =============================================== shadowsocks =============================================== * #
   shadowsocks:
     image: teddysun/shadowsocks-libev:latest
-    network_mode: "host"
+    container_name: shadowsocks
+    ports:
+      - "8388:8388"
     restart: always
     volumes:
       - ./env/config.json:/etc/shadowsocks-libev/config.json
@@ -14,7 +16,9 @@ services:
     # ref: https://calxu.github.io/note/20200301_vpn_2/
     image: snowdreamtech/frpc:latest
     container_name: frp
-    network_mode: "host"
+    ports:
+      - "12345:12345"
+      - "7000:7000"
     restart: always
     volumes:
       - ./env/frpc.ini:/etc/frp/frpc.ini
