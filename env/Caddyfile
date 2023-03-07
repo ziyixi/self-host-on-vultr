@@ -11,5 +11,5 @@ dashboard.ziyixi.science {
 }
 
 job.ziyixi.science {
-	reverse_proxy * jobfinder:8080
+	reverse_proxy * sqlite-web:8080
 }
