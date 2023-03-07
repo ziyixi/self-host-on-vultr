@@ -11,10 +11,5 @@ dashboard.ziyixi.science {
 }
 
 job.ziyixi.science {
-	reverse_proxy * job_finder:8080 {
-		header_upstream Host {host}
-		header_upstream X-Real-IP {remote}
-		header_upstream X-Forwarded-For {remote}
-		websocket
-	}
+	reverse_proxy * jobfinder:8080
 }
