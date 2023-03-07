@@ -105,6 +105,39 @@ services:
     networks:
       - caddy
 
+  # * =============================================== job-finder =============================================== * #
+  ofelia:
+    image: mcuadros/ofelia:latest
+    container_name: ofelia
+    depends_on:
+      - job_finder
+    command: daemon --docker
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  job_finder:
+    image: ghcr.io/ziyixi/job-finder:latest
+    container_name: job_finder
+    labels:
+      ofelia.enabled: "true"
+      ofelia.job-exec.job_finder.schedule: "@every 1h"
+      ofelia.job-exec.job_finder.no-overlap: 'true'
+      ofelia.job-exec.job_finder.command: "sh run_job.sh > log.txt"
+    volumes:
+      - ./data/job_finder/log.txt:/app/job_finder/log.txt
+      - ./data/job_finder/job_finder.sqlite:/app/job_finder/job_finder.sqlite
+
+  sqlite-web:
+    image: ghcr.io/ziyixi/sqlite-web:latest
+    container_name: sqlite-web
+    depends_on:
+      - job_finder
+    volumes:
+      - ./data/job_finder:/data
+    env_file: ./env/sqlite_web.env
+    networks:
+      - caddy
+
   # * =============================================== backup =============================================== * #
   backup:
     image: offen/docker-volume-backup:latest

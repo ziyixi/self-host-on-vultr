@@ -9,3 +9,7 @@ changedetection.ziyixi.science {
 dashboard.ziyixi.science {
 	reverse_proxy * flame:5005
 }
+
+job.ziyixi.science {
+	reverse_proxy * job_finder:8080
+}
