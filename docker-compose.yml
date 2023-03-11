@@ -127,6 +127,7 @@ services:
     volumes:
       - ./data/job_finder/log.txt:/app/job_finder/log.txt
       - ./data/job_finder/job_finder.sqlite:/app/job_finder/job_finder.sqlite
+    env_file: ./env/job_finder.env
     restart: always
 
   sqlite-web:
