@@ -23,5 +23,6 @@ jobs:
         az vm run-command invoke \
           --resource-group container-host \
           --name ContainerHostVM \
+          --run-as-user xiziyi \
           --command-id RunShellScript \
-          --scripts "su xiziyi && cd /home/xiziyi/self-host-on-azure && git pull && chmod +x update.sh && ./update.sh > info 2>&1" \
+          --scripts "cd /home/xiziyi/self-host-on-azure && git pull && chmod +x update.sh && ./update.sh > info 2>&1" \
