@@ -24,4 +24,4 @@ jobs:
           --resource-group container-host \
           --name ContainerHostVM \
           --command-id RunShellScript \
-          --scripts "cd /home/xiziyi/self-host-on-azure && export $HOME=/home/xiziyi && git config --global --add safe.directory /home/xiziyi/self-host-on-azure && git pull && chmod +x update.sh && ./update.sh > info"
+          --scripts "cd /home/xiziyi/self-host-on-azure && export HOME=/home/xiziyi && git config --global --add safe.directory /home/xiziyi/self-host-on-azure && git pull && chmod +x update.sh && ./update.sh > info"
