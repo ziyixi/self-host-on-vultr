@@ -24,4 +24,4 @@ jobs:
           --resource-group container-host \
           --name ContainerHostVM \
           --command-id RunShellScript \
-          --scripts "cd /home/xiziyi/self-host-on-azure && git pull && docker compose down && docker compose pull && docker image prune -f && docker compose up -d"
+          --scripts "cd /home/xiziyi/self-host-on-azure && chmod +x update.sh && ./update.sh > info"
