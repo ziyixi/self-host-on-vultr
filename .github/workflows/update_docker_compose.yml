@@ -1,0 +1,27 @@
+name: Update Docker Compose on Azure VM
+
+on:
+  push:
+    branches:
+      - main # Or the branch you want to trigger the workflow
+
+jobs:
+  update_docker_compose:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Authenticate with Azure
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Run Docker Compose commands on Azure VM
+      run: |
+        az vm run-command invoke \
+          --resource-group container-host \
+          --name ContainerHostVM \
+          --command-id RunShellScript \
+          --scripts "cd /home/xiziyi/self-host-on-azure && ls -lh > info"
