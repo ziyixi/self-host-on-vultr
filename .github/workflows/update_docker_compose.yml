@@ -24,4 +24,4 @@ jobs:
           --resource-group container-host \
           --name ContainerHostVM \
           --command-id RunShellScript \
-          --scripts "su xiziyi -c 'cd /home/xiziyi/self-host-on-azure && git pull && chmod +x update.sh && ./update.sh > info 2>&1"' \
+          --scripts "su xiziyi -c 'cd /home/xiziyi/self-host-on-azure && git pull && chmod +x update.sh && ./update.sh > info 2>&1'" \
