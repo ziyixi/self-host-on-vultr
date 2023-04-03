@@ -13,3 +13,7 @@ dashboard.ziyixi.science {
 job.ziyixi.science {
 	reverse_proxy * sqlite-web:8080
 }
+
+daily.ziyixi.science {
+	reverse_proxy * cloudmailin-dida365-app:8080
+}

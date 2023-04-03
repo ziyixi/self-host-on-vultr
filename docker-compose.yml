@@ -142,6 +142,15 @@ services:
       - caddy
     restart: always
 
+  # * =============================================== cloudmailin-dida365-app =============================================== * #
+  cloudmailin-dida365-app:
+    image: ghcr.io/ziyixi/cloudmailin-dida365-app:latest
+    container_name: cloudmailin-dida365-app
+    restart: always
+    env_file: ./env/cloudmailin.env
+    networks:
+      - caddy
+
   # * =============================================== backup =============================================== * #
   backup:
     image: offen/docker-volume-backup:latest
