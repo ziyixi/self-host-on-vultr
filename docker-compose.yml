@@ -144,7 +144,7 @@ services:
 
   # * =============================================== cloudmailin-dida365-app =============================================== * #
   cloudmailin-dida365-app:
-    image: ghcr.io/ziyixi/cloudmailin-dida365-app:latest
+    image: ghcr.io/ziyixi/cloudmailin-todoist-sync:latest
     container_name: cloudmailin-dida365-app
     restart: always
     env_file: ./env/cloudmailin.env
