@@ -142,10 +142,10 @@ services:
       - caddy
     restart: always
 
-  # * =============================================== cloudmailin-dida365-app =============================================== * #
-  cloudmailin-dida365-app:
+  # * =============================================== cloudmailin-todoist-app =============================================== * #
+  cloudmailin-todoist-app:
     image: ghcr.io/ziyixi/cloudmailin-todoist-sync:latest
-    container_name: cloudmailin-dida365-app
+    container_name: cloudmailin-todoist-app
     restart: always
     env_file: ./env/cloudmailin.env
     networks:
