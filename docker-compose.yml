@@ -191,6 +191,16 @@ services:
     networks:
       - bookstack
 
+  # * =============================================== timetagger =============================================== * #
+  timetagger:
+    image: ghcr.io/almarklein/timetagger
+    container_name: timetagger
+    volumes:
+      - ./data/timetagger:/root/_timetagger
+    env_file: ./env/timetagger.env
+    networks:
+      - caddy
+
 
   # * =============================================== backup =============================================== * #
   backup:

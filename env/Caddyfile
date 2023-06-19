@@ -21,3 +21,7 @@ daily.ziyixi.science {
 wiki.ziyixi.science {
 	reverse_proxy * bookstack:80
 }
+
+time.ziyixi.science {
+	reverse_proxy * timetagger:80
+}
