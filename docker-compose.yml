@@ -197,7 +197,11 @@ services:
     container_name: timetagger
     volumes:
       - ./data/timetagger:/root/_timetagger
-    env_file: ./env/timetagger.env
+    environment:
+      - TIMETAGGER_BIND=0.0.0.0:80
+      - TIMETAGGER_DATADIR=/root/_timetagger
+      - TIMETAGGER_LOG_LEVEL=info
+      - TIMETAGGER_CREDENTIALS=test:$$2a$$08$$0CD1NFiIbancwWsu3se1v.RNR/b7YeZd71yg3cZ/3whGlyU6Iny5i  # test:test
     networks:
       - caddy
 
