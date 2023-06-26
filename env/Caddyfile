@@ -21,3 +21,7 @@ daily.ziyixi.science {
 time.ziyixi.science {
 	reverse_proxy * timetagger:80
 }
+
+siyuan.ziyixi.science {
+	reverse_proxy * siyuan:6806
+}

@@ -160,6 +160,16 @@ services:
     networks:
       - caddy
 
+  # * =============================================== siyuan =============================================== * #
+  siyuan:
+    image: b3log/siyuan:latest
+    container_name: siyuan
+    volumes:
+      - ./data/siyuan:/siyuan/workspace
+    user: "1000:1000"
+    command: --workspace=/siyuan/workspace/
+    networks:
+      - caddy
 
   # * =============================================== backup =============================================== * #
   backup:
