@@ -18,10 +18,6 @@ daily.ziyixi.science {
 	reverse_proxy * cloudmailin-todoist-app:8080
 }
 
-wiki.ziyixi.science {
-	reverse_proxy * bookstack:80
-}
-
 time.ziyixi.science {
 	reverse_proxy * timetagger:80
 }
