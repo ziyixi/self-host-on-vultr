@@ -167,7 +167,7 @@ services:
     volumes:
       - ./data/siyuan:/siyuan/workspace
     user: "1000:1000"
-    command: ['--workspace=/siyuan/workspace/', '--accessAuthCode=placeholder']
+    command: ['--workspace=/siyuan/workspace/', '--accessAuthCode=${SiyuanAuthCode}']
     networks:
       - caddy
 
