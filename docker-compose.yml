@@ -82,12 +82,12 @@ services:
   # * =============================================== frp =============================================== * #
   frp:
     # ref: https://calxu.github.io/note/20200301_vpn_2/
-    image: snowdreamtech/frps:latest
+    image: snowdreamtech/frps:0.51.0
     container_name: frp
     restart: always
     ports:
       - "12345:12345"
-      - "7000:7000"
+      - "7002:7002"
     volumes:
       - ./env/frps.ini:/etc/frp/frps.ini
       - ./data/frps.log:/log/frps.log
@@ -178,6 +178,6 @@ services:
     env_file: ./env/backup.env
     volumes:
       - ./data:/backup/data:ro
-      - ./config:/backup/config:ro
+      - ./config:/backup/config:ro  
       - ./env:/backup/env:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
