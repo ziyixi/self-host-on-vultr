@@ -174,7 +174,9 @@ services:
 
   # * =============================================== wordpress =============================================== * #
   wordpress:
-    image: wordpress:latest
+    build:
+      context: .
+      dockerfile: Dockerfile_wordpress
     container_name: wordpress
     restart: always
     depends_on:
