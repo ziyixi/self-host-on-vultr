@@ -180,7 +180,7 @@ services:
     depends_on:
       - wordpress-db
     environment:
-      WORDPRESS_DB_HOST: wordpress-db:3306
+      WORDPRESS_DB_HOST: wordpress-db
       WORDPRESS_DB_USER: wordpress
       WORDPRESS_DB_PASSWORD: wordpress
       WORDPRESS_DB_NAME: wordpress
