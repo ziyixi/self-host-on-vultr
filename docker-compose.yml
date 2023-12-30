@@ -4,6 +4,7 @@ networks:
   caddy:
   unami:
   changedetection:
+  wordpress:
 
 
 volumes: {}
@@ -170,6 +171,38 @@ services:
     command: ['--workspace=/siyuan/workspace/', '--accessAuthCode=${SiyuanAuthCode}']
     networks:
       - caddy
+
+  # * =============================================== wordpress =============================================== * #
+  wordpress:
+    image: wordpress:latest
+    container_name: wordpress
+    restart: always
+    depends_on:
+      - wordpress-db
+    environment:
+      WORDPRESS_DB_HOST: wordpress-db:3306
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+      WORDPRESS_DB_NAME: wordpress
+    volumes:
+      - ./data/wordpress:/var/www/html
+    networks:
+      - caddy
+      - wordpress
+
+  wordpress-db:
+    image: mysql:8.0
+    container_name: wordpress-db
+    restart: always
+    environment:
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wordpress
+      MYSQL_PASSWORD: wordpress
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+    volumes:
+      - ./data/wordpress-db:/var/lib/mysql
+    networks:
+      - wordpress
 
   # * =============================================== backup =============================================== * #
   backup:

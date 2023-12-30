@@ -25,3 +25,7 @@ time.ziyixi.science {
 siyuan.ziyixi.science {
 	reverse_proxy * siyuan:6806
 }
+
+wordpress.ziyixi.science {
+	reverse_proxy * wordpress:80
+}
