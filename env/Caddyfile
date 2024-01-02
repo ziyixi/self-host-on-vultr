@@ -29,3 +29,7 @@ siyuan.ziyixi.science {
 ziyixi.science {
 	reverse_proxy * wordpress:80
 }
+
+wordpress.ziyixi.science {
+	reverse_proxy * wordpress:80
+}
