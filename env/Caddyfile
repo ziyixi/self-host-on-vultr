@@ -15,7 +15,7 @@ job.ziyixi.science {
 }
 
 daily.ziyixi.science {
-	reverse_proxy * cloudmailin-todoist-app:8080
+	reverse_proxy * cloudmailin-dida365-app:8080
 }
 
 time.ziyixi.science {
