@@ -92,71 +92,12 @@ services:
       - ./env/frps.ini:/etc/frp/frps.ini
       - ./data/frps.log:/log/frps.log
 
-  # * =============================================== flame =============================================== * #
-  flame:
-    image: pawelmalak/flame:latest
-    container_name: flame
-    volumes:
-      - ./data/flame:/app/data
-      - /var/run/docker.sock:/var/run/docker.sock
-    env_file: ./env/flame.env
-    restart: always
-    networks:
-      - caddy
-
-  # * =============================================== job-finder =============================================== * #
-  ofelia:
-    image: mcuadros/ofelia:latest
-    container_name: ofelia
-    depends_on:
-      - jobfinder
-    command: daemon --docker
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    restart: always
-
-  jobfinder:
-    image: ghcr.io/ziyixi/job-finder:latest
-    container_name: jobfinder
-    labels:
-      ofelia.enabled: "true"
-      ofelia.job-exec.jobfinder.schedule: "@every 1h"
-      ofelia.job-exec.jobfinder.no-overlap: 'true'
-      ofelia.job-exec.jobfinder.command: "sh run_job.sh > log.txt"
-    volumes:
-      - ./data/job_finder/log.txt:/app/job_finder/log.txt
-      - ./data/job_finder/job_finder.sqlite:/app/job_finder/job_finder.sqlite
-    env_file: ./env/job_finder.env
-    restart: always
-
-  sqlite-web:
-    image: ghcr.io/ziyixi/sqlite-web:latest
-    container_name: sqlite-web
-    depends_on:
-      - jobfinder
-    volumes:
-      - ./data/job_finder:/data
-    env_file: ./env/sqlite_web.env
-    networks:
-      - caddy
-    restart: always
-
   # * =============================================== cloudmailin-todoist-app =============================================== * #
   cloudmailin-todoist-app:
     image: ghcr.io/ziyixi/cloudmailin-todoist-sync:latest
     container_name: cloudmailin-todoist-app
     restart: always
     env_file: ./env/cloudmailin.env
-    networks:
-      - caddy
-
-  # * =============================================== timetagger =============================================== * #
-  timetagger:
-    image: ghcr.io/almarklein/timetagger
-    container_name: timetagger
-    volumes:
-      - ./data/timetagger:/root/_timetagger
-    env_file: ./env/timetagger.env
     networks:
       - caddy
 

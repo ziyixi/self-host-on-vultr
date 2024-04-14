@@ -6,20 +6,8 @@ changedetection.ziyixi.science {
 	reverse_proxy * changedetection:5000
 }
 
-dashboard.ziyixi.science {
-	reverse_proxy * flame:5005
-}
-
-job.ziyixi.science {
-	reverse_proxy * sqlite-web:8080
-}
-
 daily.ziyixi.science {
 	reverse_proxy * cloudmailin-todoist-app:8080
-}
-
-time.ziyixi.science {
-	reverse_proxy * timetagger:80
 }
 
 siyuan.ziyixi.science {
