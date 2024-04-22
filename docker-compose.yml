@@ -4,7 +4,6 @@ networks:
   unami:
   changedetection:
   wordpress:
-  stirling:
 
 
 volumes: {}
@@ -160,7 +159,7 @@ services:
       - INSTALL_BOOK_AND_ADVANCED_HTML_OPS=false
       - LANGS=en_US
     networks:
-      - stirling
+      - caddy
   # * =============================================== backup =============================================== * #
   backup:
     image: offen/docker-volume-backup:latest
