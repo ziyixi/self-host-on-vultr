@@ -21,3 +21,7 @@ ziyixi.science {
 wordpress.ziyixi.science {
 	reverse_proxy * wordpress:80
 }
+
+pdf.ziyixi.science {
+	reverse_proxy * stirling:8080
+}
