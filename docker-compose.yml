@@ -162,6 +162,15 @@ services:
       - SECURITY_ENABLE_LOGIN=true
     networks:
       - caddy
+  # * =============================================== traggo =============================================== * #
+  traggo:
+    image: traggo/server:latest
+    env_file: ./env/traggo.env
+    volumes:
+      - ./data/traggodata:/opt/traggo/data
+    networks:
+      - caddy
+
   # * =============================================== backup =============================================== * #
   backup:
     image: offen/docker-volume-backup:latest

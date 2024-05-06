@@ -25,3 +25,7 @@ wordpress.ziyixi.science {
 pdf.ziyixi.science {
 	reverse_proxy * stirling:8080
 }
+
+time.ziyixi.science {
+	reverse_proxy * traggo:3030
+}
