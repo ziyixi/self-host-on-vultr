@@ -182,6 +182,8 @@ services:
     volumes:
       - ./extra/ngrams:/ngrams     # OPTIONAL: The location of ngrams data on the local machine
       - ./data/languagetool/logback.xml:/LanguageTool/logback.xml:ro  # OPTIONAL: Overwrite the logging configuration
+    networks:
+      - caddy
 
   # * =============================================== backup =============================================== * #
   backup:

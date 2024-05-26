@@ -29,3 +29,7 @@ pdf.ziyixi.science {
 time.ziyixi.science {
 	reverse_proxy * traggo:3030
 }
+
+languagetool.ziyixi.science {
+	reverse_proxy * languagetool:8010
+}
