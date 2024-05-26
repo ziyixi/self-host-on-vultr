@@ -171,6 +171,18 @@ services:
     networks:
       - caddy
 
+  # * =============================================== languagetool =============================================== * #
+  languagetool:
+    image: erikvl87/languagetool
+    container_name: languagetool
+    environment:
+      - langtool_languageModel=/ngrams   # OPTIONAL: Using ngrams data
+      - Java_Xms=512m                    # OPTIONAL: Setting a minimal Java heap size of 512 mib
+      - Java_Xmx=1g                      # OPTIONAL: Setting a maximum Java heap size of 1 Gib
+    volumes:
+      - ./extra/ngrams:/ngrams     # OPTIONAL: The location of ngrams data on the local machine
+      - ./data/languagetool/logback.xml:/LanguageTool/logback.xml:ro  # OPTIONAL: Overwrite the logging configuration
+
   # * =============================================== backup =============================================== * #
   backup:
     image: offen/docker-volume-backup:latest
