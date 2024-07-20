@@ -33,3 +33,7 @@ time.ziyixi.science {
 languagetool.ziyixi.science {
 	reverse_proxy * languagetool:8010
 }
+
+url.ziyixi.science {
+	reverse_proxy * slash:5231
+}

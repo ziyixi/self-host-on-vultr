@@ -185,6 +185,16 @@ services:
     networks:
       - caddy
 
+  # * =============================================== slash =============================================== * #
+  slash:
+    image: yourselfhosted/slash:1.0.0
+    container_name: slash
+    volumes:
+      - ./data/slash:/var/opt/slash
+    restart: unless-stopped
+    networks:
+      - caddy
+
   # * =============================================== backup =============================================== * #
   backup:
     image: offen/docker-volume-backup:latest
