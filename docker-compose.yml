@@ -1,6 +1,6 @@
 # * =============================================== global networks and volumes =============================================== * #
 networks:
-  caddy:
+  allexport:
   unami:
   changedetection:
   wordpress:
@@ -9,23 +9,12 @@ networks:
 volumes: {}
 
 services:
-  # * =============================================== caddy =============================================== * #
-  caddy:
-    image: caddy:latest
-    restart: always
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./env/Caddyfile:/etc/caddy/Caddyfile
-      - ./data/caddy:/data
-      - ./config/caddy:/config
-    networks:
-      - caddy
-
   # * =============================================== unami =============================================== * #
   unami:
     image: ghcr.io/umami-software/umami:postgresql-latest
+    container_name: unami
+    ports:
+      - "10001:3000"
     environment:
       DATABASE_URL: postgresql://umami:umami@unami-db:5432/umami
       DATABASE_TYPE: postgresql
@@ -34,11 +23,12 @@ services:
       - unami-db
     restart: always
     networks:
-      - caddy
+      - allexport
       - unami
 
   unami-db:
     image: postgres:15-alpine
+    container_name: unami-db
     environment:
       POSTGRES_DB: umami
       POSTGRES_USER: umami
@@ -53,6 +43,8 @@ services:
   changedetection:
     image: ghcr.io/dgtlmoon/changedetection.io:latest
     container_name: changedetection
+    ports:
+      - "10002:5000"
     hostname: changedetection
     volumes:
       - ./data/changedetection:/datastore
@@ -62,7 +54,7 @@ services:
       - FETCH_WORKERS=2
     restart: always
     networks:
-      - caddy
+      - allexport
       - changedetection
 
   browser-chrome:
@@ -96,21 +88,12 @@ services:
   cloudmailin-todoist-app:
     image: ghcr.io/ziyixi/cloudmailin-todoist-sync:latest
     container_name: cloudmailin-todoist-app
+    ports:
+      - "10003:8080"
     restart: always
     env_file: ./env/cloudmailin.env
     networks:
-      - caddy
-
-  # * =============================================== siyuan =============================================== * #
-  siyuan:
-    image: b3log/siyuan:latest
-    container_name: siyuan
-    volumes:
-      - ./data/siyuan:/siyuan/workspace
-    user: "1000:1000"
-    command: ['--workspace=/siyuan/workspace/', '--accessAuthCode=${SiyuanAuthCode}']
-    networks:
-      - caddy
+      - allexport
 
   # * =============================================== wordpress =============================================== * #
   wordpress:
@@ -118,6 +101,8 @@ services:
       context: .
       dockerfile: Dockerfile_wordpress
     container_name: wordpress
+    ports:
+      - "10004:80"
     restart: always
     depends_on:
       - wordpress-db
@@ -129,7 +114,7 @@ services:
     volumes:
       - ./data/wordpress:/var/www/html
     networks:
-      - caddy
+      - allexport
       - wordpress
 
   wordpress-db:
@@ -150,6 +135,8 @@ services:
   stirling:
     image: frooodle/s-pdf:latest
     container_name: stirling
+    ports:
+      - "10005:8080"
     restart: always
     volumes:
       - ./env/stirling:/configs
@@ -161,39 +148,19 @@ services:
       - DOCKER_ENABLE_SECURITY=true
       - SECURITY_ENABLE_LOGIN=true
     networks:
-      - caddy
-  # * =============================================== traggo =============================================== * #
-  traggo:
-    image: traggo/server:latest
-    env_file: ./env/traggo.env
-    volumes:
-      - ./data/traggodata:/opt/traggo/data
-    networks:
-      - caddy
-
-  # * =============================================== languagetool =============================================== * #
-  languagetool:
-    image: erikvl87/languagetool
-    container_name: languagetool
-    environment:
-      - langtool_languageModel=/ngrams   # OPTIONAL: Using ngrams data
-      - Java_Xms=512m                    # OPTIONAL: Setting a minimal Java heap size of 512 mib
-      - Java_Xmx=1g                      # OPTIONAL: Setting a maximum Java heap size of 1 Gib
-    volumes:
-      - ./extra/ngrams:/ngrams     # OPTIONAL: The location of ngrams data on the local machine
-      - ./data/languagetool/logback.xml:/LanguageTool/logback.xml:ro  # OPTIONAL: Overwrite the logging configuration
-    networks:
-      - caddy
+      - allexport
 
   # * =============================================== slash =============================================== * #
   slash:
     image: yourselfhosted/slash:1.0.0
     container_name: slash
+    ports:
+      - "10006:5231"
     volumes:
       - ./data/slash:/var/opt/slash
     restart: unless-stopped
     networks:
-      - caddy
+      - allexport
 
   # * =============================================== backup =============================================== * #
   backup:
