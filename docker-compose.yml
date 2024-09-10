@@ -5,7 +5,6 @@ networks:
   changedetection:
   wordpress:
 
-
 volumes: {}
 
 services:
@@ -112,6 +111,18 @@ services:
     restart: unless-stopped
     networks:
       - allexport
+
+  # * =============================================== dash =============================================== * #
+  dash:
+    image: mauricenino/dashdot:latest
+    restart: unless-stopped
+    privileged: true
+    ports:
+      - '10007:3001'
+    volumes:
+      - ./data/dash:/mnt/host:ro
+    environment:
+      DASHDOT_ENABLE_CPU_TEMPS: 'true'
 
   # * =============================================== backup =============================================== * #
   backup:
