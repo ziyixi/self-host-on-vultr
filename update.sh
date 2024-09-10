@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 echo "start update.sh"
-mkdir -p data/siyuan
-chmod 777 data/siyuan
 
 echo "Stopping containers..."
 docker compose down
