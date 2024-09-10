@@ -120,6 +120,5 @@ services:
     env_file: ./env/backup.env
     volumes:
       - ./data:/backup/data:ro
-      - ./config:/backup/config:ro  
       - ./env:/backup/env:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
