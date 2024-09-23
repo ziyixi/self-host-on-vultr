@@ -70,14 +70,14 @@ services:
     networks:
       - changedetection
 
-  # * =============================================== cloudmailin-todoist-app =============================================== * #
-  cloudmailin-todoist-app:
-    image: ghcr.io/ziyixi/cloudmailin-todoist-sync:latest
-    container_name: cloudmailin-todoist-app
+  # * =============================================== todofy =============================================== * #
+  todofy-app:
+    image: ghcr.io/ziyixi/todofy:latest
+    container_name: todofy-app
     ports:
       - "10003:8080"
     restart: always
-    env_file: ./env/cloudmailin.env
+    env_file: ./env/todofy.env
     networks:
       - allexport
 
