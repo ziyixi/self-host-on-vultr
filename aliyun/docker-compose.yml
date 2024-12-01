@@ -10,15 +10,3 @@ services:
     restart: always
     volumes:
       - ./env/config.json:/etc/shadowsocks-libev/config.json
-
-  # * =============================================== frp =============================================== * #
-  frp:
-    # ref: https://calxu.github.io/note/20200301_vpn_2/
-    image: snowdreamtech/frpc:latest
-    container_name: frp
-    ports:
-      - "7000:7000"
-    restart: always
-    volumes:
-      - ./env/frpc.ini:/etc/frp/frpc.ini
-      - ./data/frpc.log:/log/frpc.log
