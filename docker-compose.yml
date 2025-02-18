@@ -77,9 +77,7 @@ services:
     ports:
       - "10003:8080"
     volumes:
-      - type: bind
-        source: ./data/todofy.db
-        target: /todofy.db
+      ./data/todofy.db:/todofy.db
     restart: always
     env_file: ./env/todofy.env
     networks:
