@@ -76,8 +76,6 @@ services:
     container_name: todofy
     ports:
       - "10003:8080"
-    volumes:
-      - ./data/todofy:/root
     restart: always
     env_file: ./env/todofy.env
     networks:
@@ -108,6 +106,8 @@ services:
     container_name: todofy-database
     restart: always
     env_file: ./env/todofy.env
+    volumes:
+      - ./data/todofy:/root
     depends_on:
       - todofy
     networks:
