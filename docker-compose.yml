@@ -77,7 +77,7 @@ services:
     ports:
       - "10003:8080"
     volumes:
-      - ./data/todofy.db:/todofy.db
+      - ./data/todofy:/root
     restart: always
     env_file: ./env/todofy.env
     networks:
