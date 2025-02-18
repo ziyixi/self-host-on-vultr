@@ -71,13 +71,43 @@ services:
       - changedetection
 
   # * =============================================== todofy =============================================== * #
-  todofy-app:
+  todofy:
     image: ghcr.io/ziyixi/todofy:latest
-    container_name: todofy-app
+    container_name: todofy
     ports:
       - "10003:8080"
     restart: always
     env_file: ./env/todofy.env
+    networks:
+      - allexport
+
+  todofy-llm:
+    image: ghcr.io/ziyixi/todofy-llm:latest
+    container_name: todofy-llm
+    restart: always
+    env_file: ./env/todofy.env
+    depends_on:
+      - todofy
+    networks:
+      - allexport
+
+  todofy-todo:
+    image: ghcr.io/ziyixi/todofy-todo:latest
+    container_name: todofy-todo
+    restart: always
+    env_file: ./env/todofy.env
+    depends_on:
+      - todofy
+    networks:
+      - allexport
+
+  todofy-database:
+    image: ghcr.io/ziyixi/todofy-database:latest
+    container_name: todofy-database
+    restart: always
+    env_file: ./env/todofy.env
+    depends_on:
+      - todofy
     networks:
       - allexport
 
