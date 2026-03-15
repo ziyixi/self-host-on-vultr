@@ -1,3 +1,8 @@
 secrets.env
 .vscode
 .DS_Store
+data/*
+!data/.gitkeep
+!data/frps.log
+env/stirling/*
+*.env*
