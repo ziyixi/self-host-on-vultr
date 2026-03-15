@@ -2,8 +2,6 @@
 networks:
   allexport:
   unami:
-  changedetection:
-  wordpress:
 
 volumes: {}
 
@@ -37,38 +35,6 @@ services:
     restart: always
     networks:
       - unami
-
-  # * =============================================== changedetection =============================================== * #
-  changedetection:
-    image: ghcr.io/dgtlmoon/changedetection.io:latest
-    container_name: changedetection
-    ports:
-      - "10002:5000"
-    hostname: changedetection
-    volumes:
-      - ./data/changedetection:/datastore
-    environment:
-      - BASE_URL=https://changedetection.ziyixi.science
-      - USE_X_SETTINGS=1
-      - FETCH_WORKERS=2
-    restart: always
-    networks:
-      - allexport
-      - changedetection
-
-  browser-chrome:
-    hostname: browser-chrome
-    image: selenium/standalone-chrome-debug:latest
-    environment:
-      - VNC_NO_PASSWORD=1
-      - SCREEN_WIDTH=1920
-      - SCREEN_HEIGHT=1080
-      - SCREEN_DEPTH=24
-    volumes:
-      - /dev/shm:/dev/shm
-    restart: always
-    networks:
-      - changedetection
 
   # * =============================================== todofy =============================================== * #
   todofy:
@@ -144,17 +110,6 @@ services:
     networks:
       - allexport
 
-  # * =============================================== dash =============================================== * #
-  dash:
-    image: mauricenino/dashdot:latest
-    restart: unless-stopped
-    privileged: true
-    ports:
-      - '10007:3001'
-    volumes:
-      - ./data/dash:/mnt/host:ro
-    environment:
-      DASHDOT_ENABLE_CPU_TEMPS: 'true'
 
   # * =============================================== backup =============================================== * #
   backup:
