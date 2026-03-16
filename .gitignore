@@ -6,3 +6,4 @@ data/*
 !data/frps.log
 env/stirling/*
 *.env*
+!env/todofy.env.example
