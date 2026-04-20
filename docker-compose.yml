@@ -110,6 +110,17 @@ services:
     networks:
       - allexport
 
+  # * =============================================== flowday =============================================== * #
+  flowday:
+    image: ghcr.io/ziyixi/flowday:latest
+    container_name: flowday
+    ports:
+      - "10008:3000"
+    volumes:
+      - ./data/flowday:/app/db
+    restart: unless-stopped
+    networks:
+      - allexport
 
   # * =============================================== backup =============================================== * #
   backup:
