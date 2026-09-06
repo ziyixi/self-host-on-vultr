@@ -145,6 +145,18 @@ issue date: a new key is not a way to request a same-date resend. Never create a
 new empty database to bypass that protection. Do not run test sends casually or
 start two schedulers.
 
+After a confirmed normal delivery, an explicitly requested corrected preview can
+use `POST /v1/editions/{id}/send-verification` with the send capability, its exact
+frozen render hash and a stable request key. Without an extra approval this is
+limited to one verification per date. If the user expressly requests another
+new version after that verification was accepted, also supply
+`X-Newsletter-Verification-After: <latest accepted verification edition UUID>`.
+This approves only one successor to that receipt: stale predecessors, competing
+children and unconfirmed/ambiguous deliveries are rejected. Repeating an existing
+approval never makes another provider call. The normal cron client never supplies
+this header or uses the verification route. Do not change the issue date, delete
+receipts or send directly through Resend to bypass these checks.
+
 If an operator explicitly requests a fresh test of a replaced architecture after
 an unsent, terminal old run, first prove there has been **no send attempt for that
 issue date**. An explicitly named test run may then freeze the new recipe while
@@ -221,6 +233,14 @@ Keep the previous digest and a consistent data backup. Avoid pruning old images
 until validation finishes. A code rollback may also require the corresponding
 database backup if a future release changes its schema. Do not change a live
 database's configured delivery backend/recipient or reuse mock storage.
+
+The prompt-promotion release migrates the verification ledger transactionally
+from one row per date to a uniquely linked sequence, preserving all old rows.
+Back up the stopped service's complete data directory before this upgrade. After
+a new verification is attempted, never restore a pre-send backup or downgrade to
+code that assumes one verification row per date: doing so would discard or
+misinterpret a delivery receipt. Keep the current ledger and roll forward if a
+subsequent fix is needed; sender-side idempotency is not a replacement for it.
 
 ## Migration checklist: do not forget login
 
