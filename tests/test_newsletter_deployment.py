@@ -6,6 +6,7 @@ import contextlib
 import io
 import os
 from pathlib import Path
+import re
 import stat
 import subprocess
 import sys
@@ -17,15 +18,43 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def load_compose_config():
+    """Fail before parsing on versions that can resolve supposedly excluded env files."""
+    try:
+        version = subprocess.run(["docker", "compose", "version", "--short"],
+                                 text=True, capture_output=True, check=False)
+    except OSError:
+        raise RuntimeError("Install Docker Compose 5.1.0 or newer; CI pins the production version 5.1.0.") from None
+    match = re.fullmatch(r"v?(\d+)\.(\d+)\.(\d+)(?:[-+][0-9A-Za-z.-]+)?", version.stdout.strip())
+    if version.returncode or not match or tuple(map(int, match.group(1, 2, 3))) < (5, 1, 0):
+        # Do not echo arbitrary command output or try resolving any env file.
+        raise RuntimeError(
+            "Docker Compose 5.1.0 or newer is required for secret-free config checks. "
+            "Compose 2.38.2 can resolve env files despite --no-env-resolution; install the pinned CI version."
+        )
+    result = subprocess.run(
+        ["docker", "compose", "--env-file", "/dev/null", "config",
+         "--no-env-resolution", "--no-path-resolution", "--format", "json"],
+        cwd=ROOT, text=True, capture_output=True, check=False,
+    )
+    if result.returncode:
+        detail = "Check the versioned Compose syntax and supported options."
+        if "env file" in result.stderr and "not found" in result.stderr:
+            detail = "Env exclusion was not honored; check the Compose version, not private env files."
+        elif "unknown flag" in result.stderr:
+            detail = "The Compose binary does not support required config options."
+        # stderr can contain interpolated input, so classify it but never print it.
+        raise RuntimeError(f"Compose config failed with exit code {result.returncode}. {detail}")
+    try:
+        return json.loads(result.stdout)
+    except json.JSONDecodeError:
+        raise RuntimeError("Compose did not produce valid JSON; configuration output was suppressed.") from None
+
+
 class DeploymentTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        result = subprocess.run(
-            ["docker", "compose", "--env-file", "/dev/null", "config",
-             "--no-env-resolution", "--no-path-resolution", "--format", "json"],
-            cwd=ROOT, text=True, capture_output=True, check=True,
-        )
-        cls.config = json.loads(result.stdout)
+        cls.config = load_compose_config()
         cls.services = cls.config["services"]
 
     def test_immutable_service_and_client_are_identical(self):
@@ -123,6 +152,26 @@ class DeploymentTests(unittest.TestCase):
         expected = {"unami", "unami-db", "todofy", "todofy-llm", "todofy-todo",
                     "todofy-database", "stirling", "slash", "flowday", "backup"}
         self.assertTrue(expected.issubset(self.services))
+
+
+class ComposeCompatibilityTests(unittest.TestCase):
+    def test_old_compose_fails_before_any_config_or_env_parsing(self):
+        result = subprocess.CompletedProcess([], 0, "2.38.2\n", "")
+        with patch.object(subprocess, "run", return_value=result) as run:
+            with self.assertRaisesRegex(RuntimeError, "5.1.0 or newer"):
+                load_compose_config()
+        self.assertEqual(run.call_count, 1)
+        self.assertEqual(run.call_args.args[0], ["docker", "compose", "version", "--short"])
+
+    def test_config_failure_gives_safe_actionable_diagnostic(self):
+        sentinel = "PRIVATE_SENTINEL_IN_COMPOSE_DIAGNOSTIC"
+        results = [subprocess.CompletedProcess([], 0, "5.1.0\n", ""),
+                   subprocess.CompletedProcess([], 1, sentinel, "env file " + sentinel + " not found")]
+        with patch.object(subprocess, "run", side_effect=results):
+            with self.assertRaises(RuntimeError) as caught:
+                load_compose_config()
+        self.assertIn("Env exclusion was not honored", str(caught.exception))
+        self.assertNotIn(sentinel, str(caught.exception))
 
 
 class DoctorPermissionTests(unittest.TestCase):

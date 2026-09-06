@@ -17,7 +17,11 @@ support logs, or chat. Do not copy the whole interactive `~/.codex` directory.
 
 ## Fresh Linux/amd64 host
 
-1. Install Docker Engine and a current Compose plugin. The bootstrap helper uses
+1. Install Docker Engine and Compose **5.1.0 or newer**. CI explicitly installs
+   5.1.0, matching the production host, rather than relying on the runner's
+   preinstalled version. Compose 2.38.2 can still resolve service env files with
+   `config --no-env-resolution`, so it is not supported for these secret-free
+   checks. Do not add fake env files to work around an old parser. The bootstrap helper uses
    only POSIX shell/core Linux utilities and Docker on the host; checks and login
    use the runtime already packaged inside the pinned newsletter image.
 2. Check out the deployment repository at `/home/xiziyi/self-host-on-vultr`.

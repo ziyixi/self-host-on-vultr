@@ -18,6 +18,11 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      - name: Set up the production Compose version
+        uses: docker/setup-compose-action@v2
+        with:
+          version: v5.1.0
+      - run: docker compose version
       - name: Check deployment contracts without private env files
         run: python3 -B -m unittest discover -s tests -v
 
@@ -26,6 +31,11 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      - name: Set up the production Compose version
+        uses: docker/setup-compose-action@v2
+        with:
+          version: v5.1.0
+      - run: docker compose version
       - uses: docker/setup-buildx-action@v3
       - name: Resolve the versioned service image without loading private env
         id: source
