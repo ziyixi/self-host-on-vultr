@@ -29,11 +29,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
     && rm -rf /var/lib/apt/lists/* \
     && useradd --create-home --uid 10001 trigger
 WORKDIR /app
-COPY --from=download /supercronic /usr/local/bin/supercronic
+COPY --from=download --chmod=0755 /supercronic /usr/local/bin/supercronic
 # Keep exactly one implementation of orchestration. No SDK, provider packages,
 # application data, credentials, fonts, or service configuration enter this image.
-COPY --from=newsletter-client /opt/newsletter/.venv/lib/python3.12/site-packages/newsletter/trigger.py /app/trigger.py
-COPY crontab /app/crontab
+# Git preserves executable bits, not read modes: checkout under umask 077 must
+# still produce configuration readable by the unprivileged runtime user.
+COPY --from=newsletter-client --chmod=0644 /opt/newsletter/.venv/lib/python3.12/site-packages/newsletter/trigger.py /app/trigger.py
+COPY --chmod=0644 crontab /app/crontab
 USER 10001:10001
 RUN supercronic -test /app/crontab && python /app/trigger.py --help
 HEALTHCHECK --interval=60s --timeout=5s --start-period=10s CMD python -c "from pathlib import Path; assert Path('/proc/1/comm').read_text().strip() == 'supercronic'"

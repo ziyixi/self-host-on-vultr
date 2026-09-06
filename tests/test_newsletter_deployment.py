@@ -150,6 +150,18 @@ class DeploymentTests(unittest.TestCase):
         self.assertNotRegex(script, r"(?m)^\s*(sudo |chmod |chown |mkdir |cp |rm |source )")
         self.assertNotIn("docker compose down", script)
 
+    def test_image_copy_modes_do_not_inherit_private_checkout_umask(self):
+        dockerfile = (ROOT / "newsletter-trigger/Dockerfile").read_text()
+        expected = [
+            "COPY --from=download --chmod=0755 /supercronic /usr/local/bin/supercronic",
+            "COPY --from=newsletter-client --chmod=0644 /opt/newsletter/.venv/lib/python3.12/site-packages/newsletter/trigger.py /app/trigger.py",
+            "COPY --chmod=0644 crontab /app/crontab",
+        ]
+        copies = [line for line in dockerfile.splitlines() if line.startswith("COPY ")]
+        self.assertEqual(copies, expected)
+        for instruction in expected:
+            self.assertLess(dockerfile.index(instruction), dockerfile.index("USER 10001:10001"))
+
     def test_private_filenames_ignored_but_examples_visible(self):
         private = ["env/newsletter.env", "env/newsletter-trigger.env", ".env.production",
                    "env/service.env.backup", "auth.json", "nested/credentials.json",
