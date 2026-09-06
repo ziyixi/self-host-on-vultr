@@ -24,7 +24,7 @@ target.chmod(0o755)
 PY
 
 FROM python:3.12.14-slim-bookworm@sha256:782412e85d0f0984994c290652577d4018aff08145c85b262bb63dc0c7522254
-ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 TZ=UTC
+ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 TZ=America/Los_Angeles
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates tzdata \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --create-home --uid 10001 trigger
@@ -37,7 +37,9 @@ COPY --from=download --chmod=0755 /supercronic /usr/local/bin/supercronic
 COPY --from=newsletter-client --chmod=0644 /opt/newsletter/.venv/lib/python3.12/site-packages/newsletter/trigger.py /app/trigger.py
 COPY --chmod=0644 crontab /app/crontab
 USER 10001:10001
-RUN supercronic -test /app/crontab && python /app/trigger.py --help
+# Named-zone scheduling must not silently depend on the host's UTC clock.
+RUN test -r /usr/share/zoneinfo/America/Los_Angeles \
+    && supercronic -test /app/crontab && python /app/trigger.py --help
 HEALTHCHECK --interval=60s --timeout=5s --start-period=10s CMD python -c "from pathlib import Path; assert Path('/proc/1/comm').read_text().strip() == 'supercronic'"
 # Validate all send capabilities without a network request before starting cron.
 # Supercronic is PID 1 and serializes repeated invocations of each scheduled job.

@@ -98,10 +98,19 @@ support logs, or chat. Do not copy the whole interactive `~/.codex` directory.
 
 ## Scheduling and delivery
 
-`newsletter-trigger/crontab` runs at `0 15 * * *` with `TZ=UTC`, matching the old
-workflow's scheduled time (not GitHub's occasionally delayed execution time).
-Issue dates use `America/Los_Angeles`. Content collection starts at that time;
-email follows after generation, validation and rendering complete.
+`newsletter-trigger/crontab` runs at `0 7 * * *` with
+`TZ=America/Los_Angeles`, targeting delivery before **09:30 Los Angeles time**.
+Issue dates use that same named zone. Content preparation starts at **07:00**;
+email follows after generation, validation and rendering complete. The UTC start
+is 14:00 during PDT and 15:00 during PST, including automatic seasonal changes;
+do not replace the named zone with a fixed UTC offset. 07:00 is outside the
+repeated or skipped early-morning hour on daylight-saving transition days.
+
+[Supercronic uses the process `TZ` for scheduling](https://github.com/aptible/supercronic#timezone).
+The trigger image already installs `tzdata` and now checks the Los Angeles zone
+file at build time; both the image default and Compose set the same `TZ`.
+`NEWSLETTER_TIME_ZONE` controls the client's issue date, not the cron scheduler,
+so both settings must remain aligned. The crontab has no `CRON_TZ` override.
 
 Compose explicitly selects `NEWSLETTER_WORKFLOW=dag` and a 5400-second
 (90-minute) content-workflow deadline. The versioned recipe and discovery
@@ -129,11 +138,15 @@ send records retain their original policies; upgrading never retroactively
 approves an old held draft. Manual monitoring is not an execution step.
 
 The client waits up to 7200 seconds (two hours) and uses a stable
-`daily-YYYY-MM-DD` run key. The additional 30 minutes leave room for local
-publication, private Todofy enrichment, rendering and
-delivery. The timeout is an upper bound, not a promise that failed providers
-will succeed; if changing workflow limits, keep the cron command, trigger
-startup check and CI smoke check aligned and preserve this margin.
+`daily-YYYY-MM-DD` run key. From an on-time 07:00 start, the 90-minute content
+budget reaches 08:30, leaving 30 minutes inside the client wait for local
+publication, private Todofy enrichment, rendering and delivery. The client's
+nominal timeout is 09:00, with another 30 minutes before the 09:30 target for
+operational and provider-to-inbox delay. This extra margin does not extend either
+timeout or authorize another attempt. Provider acceptance is not an inbox-delivery
+guarantee; outages, a busy service, failed research or delayed email can still miss
+the target. If changing workflow limits, keep the cron command, trigger startup
+check and CI smoke check aligned, and check start + client timeout < 09:30.
 The service additionally guards sending with the frozen render hash and a stable
 send idempotency key. An interrupted/ambiguous send must be inspected rather than
 retried with a new key. Restarting the scheduler does not backfill missed days.
@@ -171,13 +184,23 @@ copies only the standalone stdlib trigger client from the pinned service image
 and installs checksum-verified Supercronic. Do not add `-overlapping`: scheduled
 executions should remain serialized.
 
+Schedule changes are baked into the trigger image: rebuild and recreate only
+`newsletter-trigger` after the deployment checks pass. Do not merely restart the
+old container or run a manual send to test the clock. For an offline schedule
+inspection after building, `docker compose run --rm --no-deps --entrypoint
+supercronic newsletter-trigger -debug -test /app/crontab` prints the configured
+next run without executing the job. Keep exactly one scheduler enabled; a missed
+07:00 run is not backfilled automatically, and changing the schedule must not
+reset a run or send receipt. A schedule-only deployment does not require a test
+email.
+
 Provider acceptance is not proof of Gmail inbox delivery. Check the recipient's
 inbox or authorized provider delivery status before calling a test successful.
 
 ## Source-first editorial configuration
 
 The pinned service includes an editable public AI source guide at
-`instructions/discovery/_sources/ai-ml.md`, alongside the six discovery directions.
+`instructions/discovery/_sources/ai-ml.md`, alongside the eight discovery directions.
 The guide is frozen with each accepted run, not fetched from mutable local files
 mid-run. If mounting a custom discovery directory, include that optional nested
 file to customize the guide; old directories without it keep their old behavior.

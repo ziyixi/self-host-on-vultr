@@ -3,6 +3,7 @@
 import json
 import importlib.util
 import contextlib
+from datetime import date, datetime, timedelta, timezone
 import io
 import os
 from pathlib import Path
@@ -14,6 +15,7 @@ import tempfile
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -108,13 +110,66 @@ class DeploymentTests(unittest.TestCase):
 
     def test_cron_schedule_and_strict_internal_origin(self):
         environment = self.services["newsletter-trigger"]["environment"]
-        self.assertEqual(environment["TZ"], "UTC")
+        self.assertEqual(environment["TZ"], "America/Los_Angeles")
         self.assertEqual(environment["NEWSLETTER_TIME_ZONE"], "America/Los_Angeles")
         self.assertEqual(environment["NEWSLETTER_SERVICE_URL"], "http://newsletter:8080")
         self.assertEqual(environment["NEWSLETTER_ALLOW_INTERNAL_HTTP"], "1")
         lines = [line for line in (ROOT / "newsletter-trigger/crontab").read_text().splitlines()
                  if line and not line.startswith("#")]
-        self.assertEqual(lines, ["0 15 * * * /usr/local/bin/python /app/trigger.py --send --timeout 7200"])
+        self.assertEqual(lines, ["0 7 * * * /usr/local/bin/python /app/trigger.py --send --timeout 7200"])
+
+    def test_morning_budget_has_margin_in_summer_winter_and_dst_transition_days(self):
+        environment = self.services["newsletter-trigger"]["environment"]
+        zone = ZoneInfo(environment["TZ"])
+        cron = next(line for line in (ROOT / "newsletter-trigger/crontab").read_text().splitlines()
+                    if line and not line.startswith("#"))
+        minute, hour, day, month, weekday = cron.split()[:5]
+        self.assertEqual((day, month, weekday), ("*", "*", "*"))
+        client_seconds = int(re.search(r"--timeout (\d+)", cron).group(1))
+        workflow_seconds = int(self.services["newsletter"]["environment"][
+            "NEWSLETTER_WORKFLOW_TIMEOUT_SECONDS"])
+        # IANA-zone checks for the configured daily wall time, not a model of
+        # provider/inbox reliability. The image separately parses real Supercronic.
+        cases = (("2026-01-15", 15), ("2026-07-15", 14),
+                 ("2026-03-07", 15), ("2026-03-08", 14), ("2026-03-09", 14),
+                 ("2026-10-31", 14), ("2026-11-01", 15), ("2026-11-02", 15))
+        for value, utc_hour in cases:
+            with self.subTest(day=value):
+                issue_day = date.fromisoformat(value)
+                start = datetime(issue_day.year, issue_day.month, issue_day.day,
+                                 int(hour), int(minute), tzinfo=zone)
+                start_utc = start.astimezone(timezone.utc)
+                self.assertEqual(start_utc.hour, utc_hour)
+                self.assertEqual(start_utc.date(), issue_day)
+                self.assertEqual(start_utc.astimezone(zone), start)
+                # At 07:00, fold=0/1 must denote the same instant: there is no
+                # ambiguous repeated-hour occurrence on the autumn transition.
+                self.assertEqual(start.replace(fold=1).astimezone(timezone.utc), start_utc)
+                content_end = (start_utc + timedelta(seconds=workflow_seconds)).astimezone(zone)
+                client_end = (start_utc + timedelta(seconds=client_seconds)).astimezone(zone)
+                target = start.replace(hour=9, minute=30)
+                self.assertEqual((content_end.hour, content_end.minute), (8, 30))
+                self.assertEqual((client_end.hour, client_end.minute), (9, 0))
+                self.assertEqual(client_end.date(), issue_day)
+                self.assertLess(client_end, target)
+                self.assertGreaterEqual((target - client_end).total_seconds(), 1800)
+
+    def test_local_daily_start_tracks_dst_without_a_fixed_utc_offset(self):
+        zone = ZoneInfo(self.services["newsletter-trigger"]["environment"]["TZ"])
+        for first, second, elapsed_hours in (("2026-03-07", "2026-03-08", 23),
+                                              ("2026-10-31", "2026-11-01", 25)):
+            with self.subTest(first=first):
+                starts = [datetime.fromisoformat(value + "T07:00:00").replace(tzinfo=zone)
+                          .astimezone(timezone.utc) for value in (first, second)]
+                self.assertEqual((starts[1] - starts[0]).total_seconds(), elapsed_hours * 3600)
+
+    def test_trigger_image_has_named_zone_data_and_matches_compose(self):
+        dockerfile = (ROOT / "newsletter-trigger/Dockerfile").read_text()
+        timezone_name = self.services["newsletter-trigger"]["environment"]["TZ"]
+        self.assertIn("TZ=" + timezone_name, dockerfile)
+        self.assertIn("ca-certificates tzdata", dockerfile)
+        self.assertIn("test -r /usr/share/zoneinfo/" + timezone_name, dockerfile)
+        self.assertIn("supercronic -test /app/crontab", dockerfile)
 
     def test_workflow_and_trigger_deadlines_stay_aligned(self):
         environment = self.services["newsletter"]["environment"]

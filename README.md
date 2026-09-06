@@ -21,11 +21,14 @@ or send mail. Missing auth requires `sh newsletter/bootstrap.sh login` while bot
 newsletter services are stopped. No host installation of Codex or Python packages
 is required.
 
-The daily schedule preserves the previous newsletter workflow: **15:00 UTC**
-(08:00 PDT / 07:00 PST). Never enable it alongside the old GitHub Actions schedule.
-The pinned service uses the versioned DAG content workflow with a 90-minute
-budget; the external trigger waits up to two hours for the protected delivery
-stages to finish. Updating runtime limits requires updating the trigger too.
+The daily schedule starts at **07:00 America/Los_Angeles**, targeting delivery
+before **09:30 local time**. The named zone automatically follows daylight saving
+time (14:00 UTC in summer, 15:00 UTC in winter). Never enable it alongside the old
+GitHub Actions schedule. The pinned service has a 90-minute content-workflow
+budget; the external client waits up to two hours, nominally to 09:00, leaving
+another 30 minutes before the target. This is a scheduling margin, not a guarantee
+against provider outages or inbox delays. Updating runtime limits requires
+checking the daily start time and trigger together.
 
 `update.sh` remains the existing whole-stack update utility. It stops all services
 and prunes images; use the targeted commands in the newsletter runbook when

@@ -1,4 +1,5 @@
-# Preserve the previous GitHub Actions schedule exactly: 15:00 UTC daily.
-# America/Los_Angeles: 08:00 during PDT, 07:00 during PST.
+# Start at 07:00 America/Los_Angeles daily; Supercronic inherits TZ from Compose.
+# 90-minute workflow, two-hour client wait, then 30 minutes to the 09:30 target.
+# The named zone follows DST: 14:00 UTC in PDT, 15:00 UTC in PST.
 # Secrets are inherited from the environment, never expanded into this command.
-0 15 * * * /usr/local/bin/python /app/trigger.py --send --timeout 7200
+0 7 * * * /usr/local/bin/python /app/trigger.py --send --timeout 7200
