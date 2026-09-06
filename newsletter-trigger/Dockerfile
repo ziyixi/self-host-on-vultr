@@ -39,4 +39,4 @@ RUN supercronic -test /app/crontab && python /app/trigger.py --help
 HEALTHCHECK --interval=60s --timeout=5s --start-period=10s CMD python -c "from pathlib import Path; assert Path('/proc/1/comm').read_text().strip() == 'supercronic'"
 # Validate all send capabilities without a network request before starting cron.
 # Supercronic is PID 1 and serializes repeated invocations of each scheduled job.
-ENTRYPOINT ["/bin/sh", "-ec", "python /app/trigger.py --check-config --send --timeout 3600; exec supercronic -split-logs /app/crontab"]
+ENTRYPOINT ["/bin/sh", "-ec", "python /app/trigger.py --check-config --send --timeout 7200; exec supercronic -split-logs /app/crontab"]

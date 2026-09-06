@@ -103,7 +103,18 @@ workflow's scheduled time (not GitHub's occasionally delayed execution time).
 Issue dates use `America/Los_Angeles`. Content collection starts at that time;
 email follows after generation, validation and rendering complete.
 
-The client waits up to one hour and uses a stable `daily-YYYY-MM-DD` run key.
+Compose explicitly selects `NEWSLETTER_WORKFLOW=dag` and a 5400-second
+(90-minute) content-workflow deadline. The versioned recipe and discovery
+instructions are packaged in the pinned newsletter image; no external routine
+or in-service cron is needed. Changes to those packaged files require a tested
+newsletter image release, not edits inside a running container.
+
+The client waits up to 7200 seconds (two hours) and uses a stable
+`daily-YYYY-MM-DD` run key. The additional 30 minutes leave room for Notion
+confirmation of adopted material, private Todofy enrichment, rendering and
+delivery. The timeout is an upper bound, not a promise that failed providers
+will succeed; if changing workflow limits, keep the cron command, trigger
+startup check and CI smoke check aligned and preserve this margin.
 The service additionally guards sending with the frozen render hash and a stable
 send idempotency key. An interrupted/ambiguous send must be inspected rather than
 retried with a new key. Restarting the scheduler does not backfill missed days.

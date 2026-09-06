@@ -6,7 +6,7 @@ networks:
   newsletter:
 
 # Replace only with a tested, immutable newsletter image when upgrading.
-x-newsletter-image: &newsletter-image ghcr.io/ziyixi/newsletter@sha256:ce0ba6717bd70eeb276608b655eb979730f9005bf9a3c5f7d173d0202ad2c110
+x-newsletter-image: &newsletter-image ghcr.io/ziyixi/newsletter@sha256:a8f1d7e1da45c2dad1b40ec0e4e67b667c337fd58cd7e630d1ba958c9deca7d7
 
 volumes: {}
 
@@ -27,6 +27,8 @@ services:
     environment:
       NEWSLETTER_DATA_DIR: /var/lib/newsletter
       NEWSLETTER_CODEX_HOME: /var/lib/newsletter-auth
+      NEWSLETTER_WORKFLOW: dag
+      NEWSLETTER_WORKFLOW_TIMEOUT_SECONDS: "5400"
     volumes:
       - type: bind
         source: ./data/newsletter

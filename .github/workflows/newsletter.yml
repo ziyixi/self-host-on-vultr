@@ -68,4 +68,4 @@ jobs:
             -e NEWSLETTER_EDITOR_TOKEN=ci-editor-token-not-a-real-secret \
             -e NEWSLETTER_SEND_TOKEN=ci-send-token-not-a-real-secret \
             --entrypoint python newsletter-trigger:ci \
-            /app/trigger.py --check-config --send --timeout 3600
+            /app/trigger.py --check-config --send --timeout 7200

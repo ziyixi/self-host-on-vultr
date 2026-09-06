@@ -23,6 +23,9 @@ is required.
 
 The daily schedule preserves the previous newsletter workflow: **15:00 UTC**
 (08:00 PDT / 07:00 PST). Never enable it alongside the old GitHub Actions schedule.
+The pinned service uses the versioned DAG content workflow with a 90-minute
+budget; the external trigger waits up to two hours for the protected delivery
+stages to finish. Updating runtime limits requires updating the trigger too.
 
 `update.sh` remains the existing whole-stack update utility. It stops all services
 and prunes images; use the targeted commands in the newsletter runbook when

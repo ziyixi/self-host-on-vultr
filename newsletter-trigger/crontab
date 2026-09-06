@@ -1,4 +1,4 @@
 # Preserve the previous GitHub Actions schedule exactly: 15:00 UTC daily.
 # America/Los_Angeles: 08:00 during PDT, 07:00 during PST.
 # Secrets are inherited from the environment, never expanded into this command.
-0 15 * * * /usr/local/bin/python /app/trigger.py --send --timeout 3600
+0 15 * * * /usr/local/bin/python /app/trigger.py --send --timeout 7200

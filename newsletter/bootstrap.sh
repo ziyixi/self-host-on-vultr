@@ -77,7 +77,7 @@ docker run --rm --pull never --network none --read-only --cap-drop ALL \
     --env-file "$package_root/env/newsletter-trigger.env" \
     --env NEWSLETTER_SERVICE_URL=http://newsletter:8080 --env NEWSLETTER_ALLOW_INTERNAL_HTTP=1 \
     --env NEWSLETTER_TIME_ZONE=America/Los_Angeles --entrypoint newsletter-trigger \
-    "$newsletter_image" --check-config --send --timeout 3600
+    "$newsletter_image" --check-config --send --timeout 7200
 printf '%s\n' 'Offline configuration checks passed. This does not prove login validity or provider availability.' \
     'Next: start newsletter only and wait for its authenticated startup preflight/healthcheck.' \
     'Keep newsletter-trigger stopped until the legacy scheduler is disabled and the live test succeeds.'

@@ -114,7 +114,22 @@ class DeploymentTests(unittest.TestCase):
         self.assertEqual(environment["NEWSLETTER_ALLOW_INTERNAL_HTTP"], "1")
         lines = [line for line in (ROOT / "newsletter-trigger/crontab").read_text().splitlines()
                  if line and not line.startswith("#")]
-        self.assertEqual(lines, ["0 15 * * * /usr/local/bin/python /app/trigger.py --send --timeout 3600"])
+        self.assertEqual(lines, ["0 15 * * * /usr/local/bin/python /app/trigger.py --send --timeout 7200"])
+
+    def test_workflow_and_trigger_deadlines_stay_aligned(self):
+        environment = self.services["newsletter"]["environment"]
+        self.assertEqual(environment["NEWSLETTER_WORKFLOW"], "dag")
+        self.assertEqual(environment["NEWSLETTER_WORKFLOW_TIMEOUT_SECONDS"], "5400")
+        for relative in ("newsletter-trigger/crontab", "newsletter-trigger/Dockerfile",
+                         ".github/workflows/newsletter.yml", "newsletter/bootstrap.sh"):
+            with self.subTest(path=relative):
+                deadlines = re.findall(r"--timeout (\d+)", (ROOT / relative).read_text())
+                self.assertEqual(deadlines, ["7200"])
+                self.assertGreaterEqual(int(deadlines[0]),
+                                        int(environment["NEWSLETTER_WORKFLOW_TIMEOUT_SECONDS"]) + 1800)
+        example = (ROOT / "env/newsletter.env.example").read_text()
+        self.assertIn("NEWSLETTER_WORKFLOW=dag\n", example)
+        self.assertIn("NEWSLETTER_WORKFLOW_TIMEOUT_SECONDS=5400\n", example)
 
     def test_thin_image_uses_only_one_orchestration_implementation(self):
         dockerfile = (ROOT / "newsletter-trigger/Dockerfile").read_text()
