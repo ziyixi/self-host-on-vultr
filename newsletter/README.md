@@ -109,32 +109,49 @@ instructions are packaged in the pinned newsletter image; no external routine
 or in-service cron is needed. Changes to those packaged files require a tested
 newsletter image release, not edits inside a running container.
 
-The service owns the complete editorial sequence, including one automatic
-minimal revision and a fresh-session final review after an initial HOLD. Passing
-the initial review skips both additional calls. An unresolved second HOLD stops
-publication; neither the cron client nor an operator log viewer grants a factual
-waiver. Removing weak claims and producing a shorter issue is preferable to
-infinite retries. Inspect `workflow.continuations` when an older unsent HOLD is
-continued through the separately frozen upgrade repair graph; the original
-deadline, research, failed edition and usage remain intact. New daily graphs
-include this sequence directly. Manual monitoring is not an execution step.
+The service owns a topic-first publication DAG. All selected topics receive a
+researched brief and independent review before selected topics are deepened.
+Approved complete versions are immediately checkpointed in SQLite. A chart or
+reading-card problem does not veto its independent body or another topic; a body
+may have one targeted rewrite/review, not a whole-issue HOLD loop. On research
+deadline, fatal provider failure or interruption, the local tail can publish
+already approved unaffected versions without another model call. It cannot
+publish unverified content when nothing passed. A later confirmed factual error
+can retract only the precise affected version with an independent evidence
+receipt. The run/edition `publication` field records every topic's disposition;
+unfinished topics remain follow-up leads rather than silently disappearing.
+
+New publications bind `projection_required=False`: Notion is an asynchronous
+one-way mirror, not a delivery dependency. Local evidence, review hashes,
+recipient checks and send receipts remain mandatory. Unknown Notion writes are
+not blindly repeated. Old frozen runs, review artifacts, projection gates and
+send records retain their original policies; upgrading never retroactively
+approves an old held draft. Manual monitoring is not an execution step.
 
 The client waits up to 7200 seconds (two hours) and uses a stable
-`daily-YYYY-MM-DD` run key. The additional 30 minutes leave room for Notion
-confirmation of adopted material, private Todofy enrichment, rendering and
+`daily-YYYY-MM-DD` run key. The additional 30 minutes leave room for local
+publication, private Todofy enrichment, rendering and
 delivery. The timeout is an upper bound, not a promise that failed providers
 will succeed; if changing workflow limits, keep the cron command, trigger
 startup check and CI smoke check aligned and preserve this margin.
 The service additionally guards sending with the frozen render hash and a stable
 send idempotency key. An interrupted/ambiguous send must be inspected rather than
 retried with a new key. Restarting the scheduler does not backfill missed days.
-For the authorized test, use that issue date's normal `daily-YYYY-MM-DD` key so
+For an ordinary authorized test, use that issue date's normal `daily-YYYY-MM-DD` key so
 the scheduled run reuses the same result/receipt instead of attempting a second
 delivery. Preserve the original issue date and request key when inspecting or
 resuming a run across midnight. The service permits only one send attempt per
 issue date: a new key is not a way to request a same-date resend. Never create a
 new empty database to bypass that protection. Do not run test sends casually or
 start two schedulers.
+
+If an operator explicitly requests a fresh test of a replaced architecture after
+an unsent, terminal old run, first prove there has been **no send attempt for that
+issue date**. An explicitly named test run may then freeze the new recipe while
+preserving the old run and deadline. Never change a key merely to bypass an
+ambiguous request or prior send; the date-level send guard still applies. The old
+daily key remains an honest terminal receipt rather than being rewritten to look
+like the new test. The next date uses the normal scheduled key and new recipe.
 
 The trigger receives only editor/send capabilities. It has no direct provider
 credentials, state mounts, published ports, or Docker socket. Its Dockerfile
