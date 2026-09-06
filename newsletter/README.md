@@ -195,9 +195,27 @@ docker compose pull newsletter
 docker compose build newsletter-trigger
 sh newsletter/bootstrap.sh check
 docker compose up -d --no-deps newsletter
-# Wait for healthy, inspect the release, then:
+# Wait for healthy. Explicit real schema check (uses a small model allowance):
+docker compose exec -T newsletter python -m newsletter.schema_smoke --allow-model-calls
+# Inspect a real frozen preview and separately authorized delivery, then:
 docker compose up -d --no-deps newsletter-trigger
 ```
+
+The offline CI/startup smoke cannot prove live schema acceptance. The opt-in
+command above checks the production writer/reviewer schemas against the configured
+model using only empty diagnostic envelopes; it does not access the service DB,
+Notion, Todofy or Resend, and never creates an issue. Runtime startup also checks
+all schema variants locally before spending tokens on discovery. See the service's
+[provider acceptance guide](https://github.com/ziyixi/newsletter/blob/main/docs/provider-acceptance.md).
+
+After a fixed shared writer-startup failure, an editor-authorized
+`POST /v1/runs/{parent_id}/retry-stories` can create exactly one child run using
+the same issue date and a fixed request key. It verifies and reuses the successful
+upstream artifact hashes, then performs fresh writing and independent review.
+It preserves the terminal parent and includes both runs' token usage. It cannot
+retry a child, an ambiguous model execution, a factual rejection or a sent issue;
+it does not send mail. This is an explicit post-fix recovery action, not a cron
+retry loop. Never reset attempt rows or rerun discovery just to change a receipt.
 
 Keep the previous digest and a consistent data backup. Avoid pruning old images
 until validation finishes. A code rollback may also require the corresponding
