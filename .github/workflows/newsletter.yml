@@ -1,0 +1,61 @@
+name: Newsletter deployment checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: newsletter-deployment-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check deployment contracts without private env files
+        run: python3 -B -m unittest discover -s tests -v
+
+  image:
+    needs: test
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Resolve the versioned service image without loading private env
+        id: source
+        run: |
+          image=$(docker compose --env-file /dev/null config --no-env-resolution --no-path-resolution --images newsletter)
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+      - name: Build the Linux amd64 trigger image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./newsletter-trigger
+          platforms: linux/amd64
+          build-args: NEWSLETTER_IMAGE=${{ steps.source.outputs.image }}
+          tags: newsletter-trigger:ci
+          load: true
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Check final image offline; no account or provider secrets in CI
+        run: |
+          test "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' newsletter-trigger:ci)" = linux/amd64
+          test "$(docker image inspect --format '{{.Config.User}}' newsletter-trigger:ci)" = 10001:10001
+          docker run --rm --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges:true --entrypoint supercronic \
+            newsletter-trigger:ci -test /app/crontab
+          docker run --rm --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            -e NEWSLETTER_SERVICE_URL=http://newsletter:8080 \
+            -e NEWSLETTER_ALLOW_INTERNAL_HTTP=1 \
+            -e NEWSLETTER_TIME_ZONE=America/Los_Angeles \
+            -e NEWSLETTER_EDITOR_TOKEN=ci-editor-token-not-a-real-secret \
+            -e NEWSLETTER_SEND_TOKEN=ci-send-token-not-a-real-secret \
+            --entrypoint python newsletter-trigger:ci \
+            /app/trigger.py --check-config --send --timeout 3600

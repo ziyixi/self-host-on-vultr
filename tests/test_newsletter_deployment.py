@@ -1,0 +1,271 @@
+"""Offline deployment-contract checks; never read private env or contact a daemon."""
+
+import json
+import importlib.util
+import contextlib
+import io
+import os
+from pathlib import Path
+import stat
+import subprocess
+import sys
+import tempfile
+from types import SimpleNamespace
+import unittest
+from unittest.mock import patch
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+class DeploymentTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        result = subprocess.run(
+            ["docker", "compose", "--env-file", "/dev/null", "config",
+             "--no-env-resolution", "--no-path-resolution", "--format", "json"],
+            cwd=ROOT, text=True, capture_output=True, check=True,
+        )
+        cls.config = json.loads(result.stdout)
+        cls.services = cls.config["services"]
+
+    def test_immutable_service_and_client_are_identical(self):
+        image = self.services["newsletter"]["image"]
+        self.assertRegex(image, r"^ghcr\.io/ziyixi/newsletter@sha256:[0-9a-f]{64}$")
+        self.assertEqual(image, self.services["newsletter-trigger"]["build"]["args"]["NEWSLETTER_IMAGE"])
+
+    def test_network_has_egress_but_no_exposure(self):
+        self.assertFalse(self.config["networks"]["newsletter"].get("internal", False))
+        for name in ("newsletter", "newsletter-trigger"):
+            with self.subTest(name=name):
+                service = self.services[name]
+                self.assertFalse(service.get("ports"))
+                self.assertNotEqual(service.get("network_mode"), "host")
+                self.assertEqual(set(service["networks"]), {"newsletter"})
+
+    def test_container_security_and_resource_limits(self):
+        self.assertTrue(self.services["newsletter"]["init"])
+        for name in ("newsletter", "newsletter-trigger"):
+            with self.subTest(name=name):
+                service = self.services[name]
+                self.assertEqual(service["platform"], "linux/amd64")
+                self.assertEqual(service["user"], "10001:10001")
+                self.assertTrue(service["read_only"])
+                self.assertIn("ALL", service["cap_drop"])
+                self.assertIn("no-new-privileges:true", service["security_opt"])
+                self.assertGreater(int(service["mem_limit"]), 0)
+                self.assertGreater(service["pids_limit"], 0)
+                self.assertGreater(float(service["cpus"]), 0)
+                self.assertFalse(service.get("privileged", False))
+
+    def test_auth_outside_backup_roots_and_no_auto_created_mounts(self):
+        mounts = self.services["newsletter"]["volumes"]
+        by_target = {mount["target"]: mount for mount in mounts}
+        auth = by_target["/var/lib/newsletter-auth"]
+        self.assertEqual(auth["source"], "/home/xiziyi/.local/share/newsletter/codex-auth")
+        self.assertEqual(by_target["/var/lib/newsletter"]["source"], "./data/newsletter")
+        for mount in mounts:
+            self.assertFalse(mount["bind"]["create_host_path"])
+            self.assertNotIn("docker.sock", mount["source"])
+        self.assertFalse(self.services["newsletter-trigger"].get("volumes"))
+
+    def test_env_files_are_raw_and_separate(self):
+        for name in ("newsletter", "newsletter-trigger"):
+            self.assertEqual(self.services[name]["env_file"],
+                             [{"path": f"./env/{name}.env", "format": "raw"}])
+        example = (ROOT / "env/newsletter-trigger.env.example").read_text()
+        keys = {line.split("=", 1)[0] for line in example.splitlines()
+                if line and not line.startswith("#")}
+        self.assertEqual(keys, {"NEWSLETTER_EDITOR_TOKEN", "NEWSLETTER_SEND_TOKEN"})
+
+    def test_cron_schedule_and_strict_internal_origin(self):
+        environment = self.services["newsletter-trigger"]["environment"]
+        self.assertEqual(environment["TZ"], "UTC")
+        self.assertEqual(environment["NEWSLETTER_TIME_ZONE"], "America/Los_Angeles")
+        self.assertEqual(environment["NEWSLETTER_SERVICE_URL"], "http://newsletter:8080")
+        self.assertEqual(environment["NEWSLETTER_ALLOW_INTERNAL_HTTP"], "1")
+        lines = [line for line in (ROOT / "newsletter-trigger/crontab").read_text().splitlines()
+                 if line and not line.startswith("#")]
+        self.assertEqual(lines, ["0 15 * * * /usr/local/bin/python /app/trigger.py --send --timeout 3600"])
+
+    def test_thin_image_uses_only_one_orchestration_implementation(self):
+        dockerfile = (ROOT / "newsletter-trigger/Dockerfile").read_text()
+        self.assertIn("site-packages/newsletter/trigger.py /app/trigger.py", dockerfile)
+        self.assertNotIn("COPY .", dockerfile)
+        self.assertIn("--check-config --send", dockerfile)
+        self.assertNotIn("-overlapping", dockerfile)
+        self.assertIn("a53ae236602c7338aba3fbaff40bda6300eae3b9fedb8261eb06cfe3724430c1", dockerfile)
+        self.assertEqual((ROOT / "newsletter-trigger/.dockerignore").read_text().splitlines(),
+                         ["**", "!Dockerfile", "!crontab"])
+
+    def test_login_helper_uses_image_and_never_auto_repairs_state(self):
+        script = (ROOT / "newsletter/bootstrap.sh").read_text()
+        subprocess.run(["sh", "-n", str(ROOT / "newsletter/bootstrap.sh")], check=True)
+        self.assertIn("_codex_runtime.py", script)
+        self.assertIn("login --device-auth", script)
+        self.assertIn("--network none", script)
+        self.assertNotRegex(script, r"(?m)^\s*(sudo |chmod |chown |mkdir |cp |rm |source )")
+        self.assertNotIn("docker compose down", script)
+
+    def test_private_filenames_ignored_but_examples_visible(self):
+        private = ["env/newsletter.env", "env/newsletter-trigger.env", ".env.production",
+                   "env/service.env.backup", "auth.json", "nested/credentials.json",
+                   "nested/private.key", "data/newsletter/state.sqlite3"]
+        result = subprocess.run(["git", "check-ignore", "--stdin"], cwd=ROOT,
+                                input="\n".join(private) + "\n", text=True,
+                                capture_output=True, check=True)
+        self.assertEqual(set(result.stdout.splitlines()), set(private))
+        result = subprocess.run(["git", "check-ignore", "--stdin"], cwd=ROOT,
+                                input="env/newsletter.env.example\nenv/newsletter-trigger.env.example\n",
+                                text=True, capture_output=True)
+        self.assertEqual(result.returncode, 1)
+
+    def test_existing_services_remain_present(self):
+        expected = {"unami", "unami-db", "todofy", "todofy-llm", "todofy-todo",
+                    "todofy-database", "stirling", "slash", "flowday", "backup"}
+        self.assertTrue(expected.issubset(self.services))
+
+
+class DoctorPermissionTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("newsletter_doctor", ROOT / "newsletter/doctor.py")
+        cls.doctor = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.doctor)
+
+    def test_accepts_only_dedicated_uid_and_private_modes(self):
+        for directory, mode in ((True, stat.S_IFDIR | 0o700), (False, stat.S_IFREG | 0o600)):
+            with self.subTest(directory=directory):
+                info = SimpleNamespace(st_uid=10001, st_gid=10001, st_mode=mode)
+                with patch.object(Path, "lstat", return_value=info):
+                    self.doctor.require_private(Path("/private/example"), directory)
+
+    def test_rejects_wrong_owner_mode_and_symlinks_without_repair(self):
+        for uid, gid, mode in ((1000, 10001, stat.S_IFREG | 0o600),
+                               (10001, 1000, stat.S_IFREG | 0o600),
+                               (10001, 10001, stat.S_IFREG | 0o644),
+                               (10001, 10001, stat.S_IFLNK | 0o600)):
+            with self.subTest(uid=uid, gid=gid, mode=mode):
+                info = SimpleNamespace(st_uid=uid, st_gid=gid, st_mode=mode)
+                with patch.object(Path, "lstat", return_value=info):
+                    with self.assertRaises(ValueError):
+                        self.doctor.require_private(Path("/private/example"), False)
+
+    def test_missing_or_inaccessible_state_has_actionable_error(self):
+        for error in (FileNotFoundError, PermissionError):
+            with patch.object(Path, "lstat", side_effect=error):
+                with self.assertRaisesRegex(ValueError, "newsletter/README.md"):
+                    self.doctor.require_private(Path("/private/example"), False)
+
+    def test_bad_numeric_env_never_echoes_its_value(self):
+        sentinel = "SECRET_SENTINEL_MUST_NOT_APPEAR_IN_DOCTOR_OUTPUT"
+
+        class NumericSettings:
+            @classmethod
+            def from_env(cls):
+                return float(os.environ["NEWSLETTER_JOB_TIMEOUT_SECONDS"])
+
+        modules = {
+            "codex_cli_bin": SimpleNamespace(bundled_codex_path=lambda: "/runtime/codex"),
+            "newsletter": SimpleNamespace(),
+            "newsletter.codex_runtime": SimpleNamespace(
+                check_codex_home=lambda *_: None, load_sdk=lambda: None),
+            "newsletter.settings": SimpleNamespace(Settings=NumericSettings),
+        }
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(patch.dict(sys.modules, modules))
+            stack.enter_context(patch.dict(os.environ, {"NEWSLETTER_JOB_TIMEOUT_SECONDS": sentinel}))
+            stack.enter_context(patch.object(sys, "argv", ["doctor.py"]))
+            stack.enter_context(patch.object(self.doctor, "require_private"))
+            stack.enter_context(patch.object(self.doctor.os, "access", return_value=True))
+            stack.enter_context(contextlib.redirect_stdout(stdout))
+            stack.enter_context(contextlib.redirect_stderr(stderr))
+            result = self.doctor.main()
+        self.assertEqual(result, 1)
+        self.assertIn("Invalid numeric configuration", stderr.getvalue())
+        self.assertNotIn(sentinel, stdout.getvalue() + stderr.getvalue())
+        self.assertNotIn("Traceback", stderr.getvalue())
+
+    def test_untrusted_library_value_error_never_echoes_its_value(self):
+        sentinel = "SECRET_SENTINEL_IN_LIBRARY_ERROR"
+
+        def fail_sdk():
+            raise ValueError(sentinel)
+
+        modules = {
+            "codex_cli_bin": SimpleNamespace(bundled_codex_path=lambda: "/runtime/codex"),
+            "newsletter": SimpleNamespace(),
+            "newsletter.codex_runtime": SimpleNamespace(
+                check_codex_home=lambda *_: None, load_sdk=fail_sdk),
+        }
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(patch.dict(sys.modules, modules))
+            stack.enter_context(patch.object(sys, "argv", ["doctor.py"]))
+            stack.enter_context(patch.object(self.doctor, "require_private"))
+            stack.enter_context(contextlib.redirect_stdout(stdout))
+            stack.enter_context(contextlib.redirect_stderr(stderr))
+            result = self.doctor.main()
+        self.assertEqual(result, 1)
+        self.assertNotIn(sentinel, stdout.getvalue() + stderr.getvalue())
+        self.assertIn("ValueError", stderr.getvalue())
+
+
+class TokenPairTests(unittest.TestCase):
+    def compare(self, service, trigger):
+        # These synthetic test values never come from an operator's env files.
+        with tempfile.TemporaryDirectory(prefix="newsletter-config-test-") as directory:
+            service_path = Path(directory) / "service config"
+            trigger_path = Path(directory) / "trigger config"
+            service_path.write_text(service)
+            trigger_path.write_text(trigger)
+            return subprocess.run(
+                ["sh", str(ROOT / "newsletter/check-token-pairs.sh"),
+                 str(service_path), str(trigger_path)],
+                text=True, capture_output=True,
+            )
+
+    def test_matching_raw_tokens_do_not_expand_or_leak(self):
+        values = ('NEWSLETTER_EDITOR_TOKEN=test-$(printf DO_NOT_EXECUTE)-$HOME-"=literal\\token\n'
+                  "NEWSLETTER_SEND_TOKEN=test-distinct-send-token-abcdef\n")
+        result = self.compare(values, values)
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.stdout + result.stderr, "")
+
+    def test_mismatch_fails_with_key_name_only(self):
+        values = "NEWSLETTER_EDITOR_TOKEN=private-test-one\nNEWSLETTER_SEND_TOKEN=private-test-two\n"
+        result = self.compare(values, values.replace("private-test-one", "different-test-secret"))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("NEWSLETTER_EDITOR_TOKEN", result.stderr)
+        for token in ("private-test-one", "private-test-two", "different-test-secret"):
+            self.assertNotIn(token, result.stdout + result.stderr)
+
+    def test_missing_empty_or_duplicate_tokens_fail(self):
+        values = "NEWSLETTER_EDITOR_TOKEN=test-editor\nNEWSLETTER_SEND_TOKEN=test-send\n"
+        for malformed in ("", "NEWSLETTER_EDITOR_TOKEN=\nNEWSLETTER_SEND_TOKEN=test-send\n",
+                          values + "NEWSLETTER_EDITOR_TOKEN=test-editor\n"):
+            with self.subTest(malformed=malformed):
+                result = self.compare(values, malformed)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertNotIn("test-editor", result.stdout + result.stderr)
+
+    def test_trigger_rejects_other_secrets_without_echoing_key_or_value(self):
+        values = "NEWSLETTER_EDITOR_TOKEN=test-editor\nNEWSLETTER_SEND_TOKEN=test-send\n"
+        sentinel = "SECRET_PROVIDER_SENTINEL_MUST_NOT_BE_ECHOED"
+        for extra in ("RESEND_API_KEY=" + sentinel, sentinel, "UNRECOGNIZED_KEY=" + sentinel):
+            with self.subTest(extra_kind=extra.split("=", 1)[0]):
+                result = self.compare(values, values + extra + "\n")
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Trigger env may contain only", result.stderr)
+                for forbidden in (sentinel, "RESEND_API_KEY", "UNRECOGNIZED_KEY"):
+                    self.assertNotIn(forbidden, result.stdout + result.stderr)
+
+    def test_trigger_allows_comments_and_blank_lines(self):
+        values = "NEWSLETTER_EDITOR_TOKEN=test-editor\nNEWSLETTER_SEND_TOKEN=test-send\n"
+        result = self.compare(values, "# Private capabilities\n  # comment\n\n  \n" + values)
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.stdout + result.stderr, "")
+
+
+if __name__ == "__main__":
+    unittest.main()

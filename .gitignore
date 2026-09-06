@@ -7,3 +7,21 @@ data/*
 env/stirling/*
 *.env*
 !env/todofy.env.example
+!env/newsletter.env.example
+!env/newsletter-trigger.env.example
+
+# Login caches and private configuration must never enter the public repository.
+**/auth.json
+**/credentials.json
+**/*credentials*.json
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/.codex/
+**/.env
+**/.env.*
+!**/.env.example
+__pycache__/
+*.py[cod]
+.pytest_cache/

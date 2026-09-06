@@ -2,10 +2,93 @@
 networks:
   allexport:
   unami:
+  # No published ports; this bridge still permits outbound provider requests.
+  newsletter:
+
+# Replace only with a tested, immutable newsletter image when upgrading.
+x-newsletter-image: &newsletter-image ghcr.io/ziyixi/newsletter@sha256:ce0ba6717bd70eeb276608b655eb979730f9005bf9a3c5f7d173d0202ad2c110
 
 volumes: {}
 
 services:
+  # * =============================================== newsletter =============================================== * #
+  newsletter:
+    image: *newsletter-image
+    platform: linux/amd64
+    init: true
+    restart: unless-stopped
+    user: "10001:10001"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    env_file:
+      - path: ./env/newsletter.env
+        format: raw
+    environment:
+      NEWSLETTER_DATA_DIR: /var/lib/newsletter
+      NEWSLETTER_CODEX_HOME: /var/lib/newsletter-auth
+    volumes:
+      - type: bind
+        source: ./data/newsletter
+        target: /var/lib/newsletter
+        bind:
+          create_host_path: false
+      # Outside ./env and ./data: the existing backup service reads both.
+      - type: bind
+        source: /home/xiziyi/.local/share/newsletter/codex-auth
+        target: /var/lib/newsletter-auth
+        bind:
+          create_host_path: false
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=256m,mode=1777
+    mem_limit: 1536m
+    cpus: 2
+    pids_limit: 128
+    stop_grace_period: 60s
+    networks: [newsletter]
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  newsletter-trigger:
+    # Built natively on the Linux server, using the same immutable service client.
+    image: local/newsletter-trigger:service
+    platform: linux/amd64
+    build:
+      context: ./newsletter-trigger
+      args:
+        NEWSLETTER_IMAGE: *newsletter-image
+    restart: unless-stopped
+    user: "10001:10001"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    env_file:
+      - path: ./env/newsletter-trigger.env
+        format: raw
+    environment:
+      TZ: UTC
+      NEWSLETTER_TIME_ZONE: America/Los_Angeles
+      NEWSLETTER_SERVICE_URL: http://newsletter:8080
+      NEWSLETTER_ALLOW_INTERNAL_HTTP: "1"
+    depends_on:
+      newsletter:
+        condition: service_healthy
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=16m,mode=1777
+    mem_limit: 128m
+    cpus: 0.25
+    pids_limit: 32
+    stop_grace_period: 65s
+    networks: [newsletter]
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
+
   # * =============================================== unami =============================================== * #
   unami:
     image: ghcr.io/umami-software/umami:postgresql-latest
