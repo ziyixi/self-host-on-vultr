@@ -109,6 +109,16 @@ instructions are packaged in the pinned newsletter image; no external routine
 or in-service cron is needed. Changes to those packaged files require a tested
 newsletter image release, not edits inside a running container.
 
+The service owns the complete editorial sequence, including one automatic
+minimal revision and a fresh-session final review after an initial HOLD. Passing
+the initial review skips both additional calls. An unresolved second HOLD stops
+publication; neither the cron client nor an operator log viewer grants a factual
+waiver. Removing weak claims and producing a shorter issue is preferable to
+infinite retries. Inspect `workflow.continuations` when an older unsent HOLD is
+continued through the separately frozen upgrade repair graph; the original
+deadline, research, failed edition and usage remain intact. New daily graphs
+include this sequence directly. Manual monitoring is not an execution step.
+
 The client waits up to 7200 seconds (two hours) and uses a stable
 `daily-YYYY-MM-DD` run key. The additional 30 minutes leave room for Notion
 confirmation of adopted material, private Todofy enrichment, rendering and
