@@ -174,6 +174,18 @@ executions should remain serialized.
 Provider acceptance is not proof of Gmail inbox delivery. Check the recipient's
 inbox or authorized provider delivery status before calling a test successful.
 
+## Source-first editorial configuration
+
+The pinned service includes an editable public AI source guide at
+`instructions/discovery/_sources/ai-ml.md`, alongside the six discovery directions.
+The guide is frozen with each accepted run, not fetched from mutable local files
+mid-run. If mounting a custom discovery directory, include that optional nested
+file to customize the guide; old directories without it keep their old behavior.
+It is not a domain allowlist or proof that a paper is important. Candidate author,
+institution, venue, contribution and consulted URLs stay unverified leads until
+story research. The source-first update adds no worker, model review round,
+scheduler, exposed port or change to the existing delivery approval chain.
+
 ## Authentication recovery
 
 Container packaging makes the runtime reproducible, **not the account login**.
