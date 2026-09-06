@@ -188,8 +188,9 @@ Schedule changes are baked into the trigger image: rebuild and recreate only
 `newsletter-trigger` after the deployment checks pass. Do not merely restart the
 old container or run a manual send to test the clock. For an offline schedule
 inspection after building, `docker compose run --rm --no-deps --entrypoint
-supercronic newsletter-trigger -debug -test /app/crontab` prints the configured
-next run without executing the job. Keep exactly one scheduler enabled; a missed
+supercronic newsletter-trigger -debug -test /app/crontab` validates the configured
+schedule syntax without executing the job. It does not print the next run time.
+Keep exactly one scheduler enabled; a missed
 07:00 run is not backfilled automatically, and changing the schedule must not
 reset a run or send receipt. A schedule-only deployment does not require a test
 email.
