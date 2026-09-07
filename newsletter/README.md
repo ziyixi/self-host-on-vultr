@@ -74,7 +74,11 @@ support logs, or chat. Do not copy the whole interactive `~/.codex` directory.
    the check containers have no network; this checks permissions, SDK presence,
    configuration and matching trigger capabilities, not credential validity.
    It neither refreshes login nor opens SQLite. Errors explain what to repair.
-8. Start only the service and let its real startup preflight finish:
+8. Authorize both independent Notion databases and initialize their managed
+   columns using the [dual-database setup](#notion-materials-and-edition-archive)
+   below. `update.sh` and startup never create these columns implicitly. This
+   uses the existing private Notion token, not the dedicated Codex login.
+9. Start only the service and let its real startup preflight finish:
 
    ```sh
    docker compose up -d --no-deps newsletter
@@ -87,7 +91,7 @@ support logs, or chat. Do not copy the whole interactive `~/.codex` directory.
    dependencies and initialize persistent storage. The service must become
    healthy before scheduling. Keep the scheduler stopped until a real content
    run and the separately authorized test email have been verified.
-9. Disable the legacy GitHub Actions daily workflow and ensure no old send run
+10. Disable the legacy GitHub Actions daily workflow and ensure no old send run
    remains active. Then enable the new daily trigger:
 
    ```sh
@@ -95,6 +99,95 @@ support logs, or chat. Do not copy the whole interactive `~/.codex` directory.
    docker compose ps newsletter newsletter-trigger
    docker compose logs --tail 40 newsletter-trigger
    ```
+
+## Notion materials and edition archive
+
+Use two independent Notion databases: one row per public paper/event in the
+materials library, and one row per frozen edition in the daily archive. Two
+linked views of one data source are not two databases. Share both with the same
+Internal connection and enable Read content, Insert content and Update content.
+Relations need access to both destinations. Keep the default title column;
+the setup command adds the managed metadata columns, so do not build them by hand.
+
+In the existing private `env/newsletter.env`, preserve all current secrets and
+add both `NOTION_MATERIALS_DATA_SOURCE_ID` and `NOTION_EDITIONS_DATA_SOURCE_ID`.
+Use **data source IDs**, not the page/database IDs from arbitrary links. Both
+must be set, valid and different. Continue using `NEWSLETTER_NOTION=notion` and
+the existing `NOTION_TOKEN`. Do not send tokens or passwords in chat or add
+them to commands, Git, image layers or diagnostic output.
+
+`NEWSLETTER_NOTION_ARCHIVE_PRIVATE=false` is the safe default. Set it to `true`
+only after the owner explicitly authorizes storing the frozen Todofy events in
+the archive database. The materials library never receives these events. Do
+not Publish or publicly share the archive; inspect inherited page permissions
+as well. Hiding columns is not an access-control boundary. Notion access does
+not replace the dedicated Codex login: follow `bootstrap.sh login` when moving
+to a host without a restored service login.
+
+The two new IDs select the dual-database adapter. The old
+`NOTION_DATA_SOURCE_ID` may remain in an existing private env file but is ignored
+in dual mode; leaving both new IDs unset retains legacy single-database mode.
+There is no fallback write to the old database if dual sync fails. Dual mode
+requires the packaged daily DAG or a custom DAG with a supported `publish` tail,
+not legacy projection barriers.
+
+After selecting and pulling the tested image that contains `notion_cli`, inspect
+both schemas before changing anything:
+
+```sh
+docker compose run --rm --no-deps --entrypoint python newsletter -m newsletter.notion_cli setup
+```
+
+If the targets and missing-column report are correct, explicitly initialize them:
+
+```sh
+docker compose run --rm --no-deps --entrypoint python newsletter -m newsletter.notion_cli setup --apply
+```
+
+These one-off containers inherit the service's data/auth mounts and private env,
+but `setup` only calls the Notion HTTP/schema adapter: it does not open the
+application Store, run a model, refresh Codex auth, collect content or send mail.
+The existing service need not be stopped merely to initialize the Notion schema;
+`--no-deps` does not start the scheduler or other services. Do not run a second
+full newsletter server against the same mounted data. A bootstrap directory or
+env-file error still needs to be repaired before Compose can launch the tool.
+
+Without `--apply`, setup is read-only. With it, both schemas are checked first,
+then missing managed columns are added; wrong field types or relation targets
+are rejected, not destructively converted. This is not an atomic cross-database
+migration. After an interrupted setup, inspect again before applying remaining
+changes. Neither `update.sh` nor normal service startup implicitly creates
+columns. Startup checks existing schemas and rejects permanent configuration or
+authorization errors; temporary Notion outages are reported as degraded.
+
+Once the tested service is healthy with the new configuration, its independent
+background task backfills existing public materials and ready editions. It
+does not add cron jobs, use LLM tokens, start new content runs or send test mail.
+SQLite remains authoritative; Notion availability does not block normal email.
+Historical test editions remain marked as tests, not rewritten or deleted.
+The archive includes original frozen PNG charts and, if authorized, Todofy
+events after the public content. Provider acceptance appears as submitted, not
+as proof of inbox delivery.
+
+Read synchronization counts and safe diagnostics while the service is running:
+
+```sh
+docker compose exec -T newsletter python -m newsletter.notion_cli status
+```
+
+`status` opens SQLite read-only and makes no provider calls. Check that bodies,
+graphs and relations are actually present in Notion, not only that pages exist.
+Unknown create/append outcomes are reconciled by reading before any retry;
+never delete receipts to force another write. Do not hand-edit generated page
+bodies; keep extra notes on a separate linked page. Changing destinations or
+privacy policy requires explicit migration, not removing the destination guard.
+
+Only after new-database verification may an operator archive the exact old
+test pages into Notion trash. Do not delete SQLite packets, runs, frozen
+editions, projection history or send receipts. Keep recoverable backups and
+never restore a pre-send database to redo an archive. Full field definitions
+and behavior are in the service's
+[Notion guide](https://github.com/ziyixi/newsletter/blob/main/docs/notion.md).
 
 ## Scheduling and delivery
 
@@ -295,6 +388,9 @@ subsequent fix is needed; sender-side idempotency is not a replacement for it.
   stale auth from an image or original seed.
 - Preserve secret file modes and restore UID/GID 10001 on the two dedicated
   container-writable directories. Keep service/trigger token pairs identical.
+- Preserve both Notion data source IDs and the explicit private-archive policy.
+  Reauthorize both databases if using a new connection; initialize missing
+  schemas explicitly with `notion_cli setup --apply`, never by deleting SQLite.
 - Restore the same immutable image digest first. Run bootstrap check, start only
   newsletter, and verify real readiness before enabling exactly one scheduler.
 - Do not run old and new hosts against the same login/database concurrently.

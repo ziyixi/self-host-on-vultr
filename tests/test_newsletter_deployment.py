@@ -108,6 +108,45 @@ class DeploymentTests(unittest.TestCase):
                 if line and not line.startswith("#")}
         self.assertEqual(keys, {"NEWSLETTER_EDITOR_TOKEN", "NEWSLETTER_SEND_TOKEN"})
 
+    def test_notion_dual_database_example_keeps_secrets_blank_and_privacy_opt_in(self):
+        example = (ROOT / "env/newsletter.env.example").read_text()
+        values = dict(line.split("=", 1) for line in example.splitlines()
+                      if line and not line.startswith("#"))
+        self.assertEqual(values["NEWSLETTER_NOTION"], "notion")
+        self.assertEqual(values["NEWSLETTER_WORKFLOW"], "dag")
+        self.assertEqual(values["NOTION_TOKEN"], "")
+        self.assertEqual(values["NOTION_MATERIALS_DATA_SOURCE_ID"], "")
+        self.assertEqual(values["NOTION_EDITIONS_DATA_SOURCE_ID"], "")
+        self.assertEqual(values["NEWSLETTER_NOTION_ARCHIVE_PRIVATE"], "false")
+        self.assertNotIn("NOTION_DATA_SOURCE_ID", values)
+        self.assertIn("# NOTION_DATA_SOURCE_ID=", example)
+        for name in ("NEWSLETTER_INGEST_TOKEN", "NEWSLETTER_EDITOR_TOKEN", "NEWSLETTER_SEND_TOKEN",
+                     "RESEND_API_KEY", "TODO_API_USER", "TODO_API_PASSWORD"):
+            self.assertEqual(values[name], "")
+        # Notion authority belongs only to the service, never the trigger.
+        trigger = (ROOT / "env/newsletter-trigger.env.example").read_text()
+        self.assertNotRegex(trigger, r"(?m)^(?:NOTION_|NEWSLETTER_NOTION)")
+
+    def test_notion_operator_commands_do_not_start_content_or_a_second_scheduler(self):
+        documentation = (ROOT / "newsletter/README.md").read_text()
+        setup = ("docker compose run --rm --no-deps --entrypoint python newsletter "
+                 "-m newsletter.notion_cli setup")
+        self.assertIn(setup + "\n", documentation)
+        self.assertIn(setup + " --apply\n", documentation)
+        self.assertIn("docker compose exec -T newsletter python -m newsletter.notion_cli status",
+                      documentation)
+        self.assertIn("Neither `update.sh` nor normal service startup implicitly creates",
+                      documentation)
+        self.assertIn("The existing service need not be stopped", documentation)
+        self.assertIn("`status` opens SQLite read-only and makes no provider calls.", documentation)
+        self.assertIn("Do not delete SQLite packets, runs, frozen", documentation)
+        for relative in ("update.sh", "newsletter/bootstrap.sh", "newsletter-trigger/crontab",
+                         "newsletter-trigger/Dockerfile"):
+            with self.subTest(path=relative):
+                self.assertNotIn("notion_cli", (ROOT / relative).read_text())
+        self.assertNotIn("NOTION_TOKEN", self.services["newsletter-trigger"]["environment"])
+        self.assertNotIn("cron", str(self.services["newsletter"].get("command", "")).lower())
+
     def test_cron_schedule_and_strict_internal_origin(self):
         environment = self.services["newsletter-trigger"]["environment"]
         self.assertEqual(environment["TZ"], "America/Los_Angeles")
