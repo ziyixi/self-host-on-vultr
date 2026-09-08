@@ -6,7 +6,7 @@ networks:
   newsletter:
 
 # Replace only with a tested, immutable newsletter image when upgrading.
-x-newsletter-image: &newsletter-image ghcr.io/ziyixi/newsletter@sha256:72157c4118a222c0ee5a04451dd07849d9ec69b630827bbe2c8c8cd528cd445e
+x-newsletter-image: &newsletter-image ghcr.io/ziyixi/newsletter@sha256:12bdfb5d02a1ea4eac1e850647f6ce85c9a8aa318c9d09a97698a0e1f78b560c
 
 volumes: {}
 
@@ -29,10 +29,17 @@ services:
       NEWSLETTER_CODEX_HOME: /var/lib/newsletter-auth
       NEWSLETTER_WORKFLOW: dag
       NEWSLETTER_WORKFLOW_TIMEOUT_SECONDS: "5400"
+      NEWSLETTER_CONTENT_CONFIG_DIR: /var/lib/newsletter-config
     volumes:
       - type: bind
         source: ./data/newsletter
         target: /var/lib/newsletter
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./config/newsletter
+        target: /var/lib/newsletter-config
+        read_only: true
         bind:
           create_host_path: false
       # Outside ./env and ./data: the existing backup service reads both.
@@ -52,6 +59,47 @@ services:
       driver: json-file
       options:
         max-size: "10m"
+        max-file: "3"
+
+  newsletter-config-sync:
+    # Configuration-only writer: no service env, database, login or mail access.
+    image: *newsletter-image
+    platform: linux/amd64
+    init: true
+    entrypoint: [python, -m, newsletter.config_sync]
+    command: [run]
+    restart: unless-stopped
+    user: "10001:10001"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      NEWSLETTER_CONTENT_CONFIG_DIR: /var/lib/newsletter-config
+      NEWSLETTER_CONFIG_REPOSITORY: ziyixi/newsletter
+      NEWSLETTER_CONFIG_POLL_SECONDS: "900"
+    volumes:
+      - type: bind
+        source: ./config/newsletter
+        target: /var/lib/newsletter-config
+        bind:
+          create_host_path: false
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=16m,mode=1777
+    healthcheck:
+      test: [CMD, python, -m, newsletter.config_sync, health]
+      interval: 60s
+      timeout: 10s
+      start_period: 90s
+      retries: 3
+    mem_limit: 128m
+    cpus: 0.25
+    pids_limit: 32
+    stop_grace_period: 10s
+    networks: [newsletter]
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
         max-file: "3"
 
   newsletter-trigger:
@@ -215,4 +263,10 @@ services:
     volumes:
       - ./data:/backup/data:ro
       - ./env:/backup/env:ro
+      - type: bind
+        source: ./config/newsletter
+        target: /backup/newsletter-config
+        read_only: true
+        bind:
+          create_host_path: false
       - /var/run/docker.sock:/var/run/docker.sock:ro

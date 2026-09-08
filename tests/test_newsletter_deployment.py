@@ -63,10 +63,11 @@ class DeploymentTests(unittest.TestCase):
         image = self.services["newsletter"]["image"]
         self.assertRegex(image, r"^ghcr\.io/ziyixi/newsletter@sha256:[0-9a-f]{64}$")
         self.assertEqual(image, self.services["newsletter-trigger"]["build"]["args"]["NEWSLETTER_IMAGE"])
+        self.assertEqual(image, self.services["newsletter-config-sync"]["image"])
 
     def test_network_has_egress_but_no_exposure(self):
         self.assertFalse(self.config["networks"]["newsletter"].get("internal", False))
-        for name in ("newsletter", "newsletter-trigger"):
+        for name in ("newsletter", "newsletter-trigger", "newsletter-config-sync"):
             with self.subTest(name=name):
                 service = self.services[name]
                 self.assertFalse(service.get("ports"))
@@ -75,7 +76,7 @@ class DeploymentTests(unittest.TestCase):
 
     def test_container_security_and_resource_limits(self):
         self.assertTrue(self.services["newsletter"]["init"])
-        for name in ("newsletter", "newsletter-trigger"):
+        for name in ("newsletter", "newsletter-trigger", "newsletter-config-sync"):
             with self.subTest(name=name):
                 service = self.services[name]
                 self.assertEqual(service["platform"], "linux/amd64")
@@ -98,6 +99,53 @@ class DeploymentTests(unittest.TestCase):
             self.assertFalse(mount["bind"]["create_host_path"])
             self.assertNotIn("docker.sock", mount["source"])
         self.assertFalse(self.services["newsletter-trigger"].get("volumes"))
+
+    def test_content_configuration_writer_is_isolated_from_reader_and_provider_state(self):
+        service = self.services["newsletter"]
+        sync = self.services["newsletter-config-sync"]
+        target = "/var/lib/newsletter-config"
+        self.assertEqual(service["environment"]["NEWSLETTER_CONTENT_CONFIG_DIR"], target)
+        self.assertEqual(sync["environment"], {
+            "NEWSLETTER_CONTENT_CONFIG_DIR": target,
+            "NEWSLETTER_CONFIG_REPOSITORY": "ziyixi/newsletter",
+            "NEWSLETTER_CONFIG_POLL_SECONDS": "900",
+        })
+        reader_mount = next(mount for mount in service["volumes"] if mount["target"] == target)
+        self.assertEqual(reader_mount["source"], "./config/newsletter")
+        self.assertTrue(reader_mount["read_only"])
+        self.assertEqual(len(sync["volumes"]), 1)
+        writer_mount = sync["volumes"][0]
+        self.assertEqual(writer_mount["source"], reader_mount["source"])
+        self.assertEqual(writer_mount["target"], target)
+        self.assertFalse(writer_mount.get("read_only", False))
+        self.assertFalse(writer_mount["bind"]["create_host_path"])
+        self.assertEqual(sync["entrypoint"], ["python", "-m", "newsletter.config_sync"])
+        self.assertEqual(sync["command"], ["run"])
+        self.assertFalse(sync.get("depends_on"))
+        self.assertNotIn("newsletter-config-sync", service.get("depends_on", {}))
+        self.assertEqual(sync["healthcheck"]["test"],
+                         ["CMD", "python", "-m", "newsletter.config_sync", "health"])
+        self.assertFalse(self.services["newsletter-trigger"].get("volumes"))
+        backup = self.services["backup"]["volumes"]
+        config_backup = next(mount for mount in backup if mount["target"] == "/backup/newsletter-config")
+        self.assertTrue(config_backup["read_only"])
+        self.assertEqual(config_backup["source"], "./config/newsletter")
+
+    def test_public_config_sync_receives_no_credentials_or_env_file(self):
+        sync = self.services["newsletter-config-sync"]
+        self.assertFalse(sync.get("env_file"))
+        self.assertNotIn("NEWSLETTER_CONFIG_GITHUB_TOKEN", self.services["newsletter"]["environment"])
+        self.assertNotIn("NEWSLETTER_CONFIG_GITHUB_TOKEN", self.services["newsletter-trigger"]["environment"])
+
+    def test_config_operator_docs_use_explicit_seed_and_persistent_local_pin(self):
+        docs = (ROOT / "newsletter/README.md").read_text()
+        for operation in ("seed", "once", "status", "pin", "unpin"):
+            self.assertIn("newsletter-config-sync " + operation, docs)
+        self.assertIn("last validated", docs)
+        self.assertIn("published", docs)
+        self.assertIn("do not run `update.sh`", docs)
+        self.assertIn("no SQLite", docs)
+        self.assertIn("config/newsletter", docs)
 
     def test_env_files_are_raw_and_separate(self):
         for name in ("newsletter", "newsletter-trigger"):
@@ -259,7 +307,8 @@ class DeploymentTests(unittest.TestCase):
     def test_private_filenames_ignored_but_examples_visible(self):
         private = ["env/newsletter.env", "env/newsletter-trigger.env", ".env.production",
                    "env/service.env.backup", "auth.json", "nested/credentials.json",
-                   "nested/private.key", "data/newsletter/state.sqlite3"]
+                   "nested/private.key", "data/newsletter/state.sqlite3", "config/newsletter/active.json",
+                   "config/newsletter/releases/test/bundle.json"]
         result = subprocess.run(["git", "check-ignore", "--stdin"], cwd=ROOT,
                                 input="\n".join(private) + "\n", text=True,
                                 capture_output=True, check=True)

@@ -47,6 +47,10 @@ def main() -> int:
 
             require_private(auth / "auth.json", directory=False)
             require_private(Path("/var/lib/newsletter"), directory=True)
+            if os.environ.get("NEWSLETTER_CONTENT_CONFIG_DIR"):
+                if os.environ["NEWSLETTER_CONTENT_CONFIG_DIR"] != "/var/lib/newsletter-config":
+                    raise DoctorError("Content configuration must use its dedicated Compose mount.")
+                require_private(Path("/var/lib/newsletter-config"), directory=True)
             try:
                 settings = Settings.from_env()
             except (ValueError, TypeError, OverflowError):

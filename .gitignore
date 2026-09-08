@@ -9,6 +9,7 @@ env/stirling/*
 !env/todofy.env.example
 !env/newsletter.env.example
 !env/newsletter-trigger.env.example
+config/newsletter/
 
 # Login caches and private configuration must never enter the public repository.
 **/auth.json

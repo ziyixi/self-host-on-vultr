@@ -7,6 +7,7 @@ fail() { printf '%s\n' "$*" >&2; exit 1; }
 package_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 auth_dir=/home/xiziyi/.local/share/newsletter/codex-auth
 data_dir=$package_root/data/newsletter
+config_dir=$package_root/config/newsletter
 operation=${1:-check}
 case "$operation" in
     check|doctor|login) ;;
@@ -64,14 +65,23 @@ sh "$package_root/newsletter/check-token-pairs.sh" \
     "$package_root/env/newsletter.env" "$package_root/env/newsletter-trigger.env"
 [ -d "$data_dir" ] && [ ! -L "$data_dir" ] \
     || fail "Create a NEW real data/newsletter directory (UID/GID 10001, mode 700); never reuse fixture data."
+[ -d "$config_dir" ] && [ ! -L "$config_dir" ] \
+    || fail "Create a real config/newsletter directory (UID/GID 10001, mode 700) and explicitly seed it; see newsletter/README.md."
 docker run --rm --pull never --network none --read-only --cap-drop ALL \
     --security-opt no-new-privileges:true --user 10001:10001 \
     --env-file "$package_root/env/newsletter.env" \
     --env NEWSLETTER_DATA_DIR=/var/lib/newsletter --env NEWSLETTER_CODEX_HOME=/var/lib/newsletter-auth \
+    --env NEWSLETTER_CONTENT_CONFIG_DIR=/var/lib/newsletter-config \
     --mount "type=bind,src=$auth_dir,dst=/var/lib/newsletter-auth,readonly" \
     --mount "type=bind,src=$data_dir,dst=/var/lib/newsletter,readonly" \
+    --mount "type=bind,src=$config_dir,dst=/var/lib/newsletter-config,readonly" \
     --mount "type=bind,src=$package_root/newsletter/doctor.py,dst=/doctor.py,readonly" \
     --entrypoint python "$newsletter_image" /doctor.py
+docker run --rm --pull never --network none --read-only --cap-drop ALL \
+    --security-opt no-new-privileges:true --user 10001:10001 \
+    --env NEWSLETTER_CONTENT_CONFIG_DIR=/var/lib/newsletter-config \
+    --mount "type=bind,src=$config_dir,dst=/var/lib/newsletter-config,readonly" \
+    --entrypoint python "$newsletter_image" -m newsletter.config_sync status
 docker run --rm --pull never --network none --read-only --cap-drop ALL \
     --security-opt no-new-privileges:true --user 10001:10001 \
     --env-file "$package_root/env/newsletter-trigger.env" \

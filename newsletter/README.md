@@ -6,12 +6,13 @@
 | --- | --- | --- |
 | Service secrets | `env/newsletter.env` | Operator-owned, mode 600; raw `KEY=value` lines |
 | Trigger capabilities | `env/newsletter-trigger.env` | Mode 600; only matching editor/send tokens |
+| Validated content configuration and rollback cache | `config/newsletter/` | UID/GID 10001, mode 700; reader RO, isolated sync process RW |
 | Live SQLite/artifacts | `data/newsletter/` | UID/GID 10001, mode 700; never reuse a fixture database |
 | Codex login and refreshed runtime cache | `/home/xiziyi/.local/share/newsletter/codex-auth/` | UID/GID 10001, directory 700, `auth.json` 600 |
 | Tested service/client version | `x-newsletter-image` in `docker-compose.yml` | Immutable GHCR SHA-256 digest |
 
-The existing backup container reads `env/` and `data/`. Codex auth intentionally
-lives outside both: keep a separately protected backup or log in again after a
+The existing backup container reads `env/`, `data/`, and `config/newsletter/`. Codex auth intentionally
+lives outside all three: keep a separately protected backup or log in again after a
 migration. Never put auth in Git, an image layer, public CI, command arguments,
 support logs, or chat. Do not copy the whole interactive `~/.codex` directory.
 
@@ -39,11 +40,12 @@ support logs, or chat. Do not copy the whole interactive `~/.codex` directory.
    without echoing the offending key or value. Check the final recipient and
    sender yourself. `onboarding@resend.dev`
    can send only to the Resend account's registered email.
-4. Provision only the two dedicated directories. On a genuinely fresh host,
+4. Provision only the three dedicated directories. On a genuinely fresh host,
    after verifying that these are the intended paths:
 
    ```sh
    sudo install -d -m 700 -o 10001 -g 10001 /home/xiziyi/self-host-on-vultr/data/newsletter
+   sudo install -d -m 700 -o 10001 -g 10001 /home/xiziyi/self-host-on-vultr/config/newsletter
    sudo install -d -m 700 -o 10001 -g 10001 /home/xiziyi/.local/share/newsletter/codex-auth
    ```
 
@@ -70,7 +72,9 @@ support logs, or chat. Do not copy the whole interactive `~/.codex` directory.
    and mounts only the dedicated auth directory read-write. It never receives
    the service's Notion, Todofy, or Resend keys. No host Codex install or port
    publication is needed. It does not silently replace auth with an older copy.
-7. Run `sh newsletter/bootstrap.sh check`. Mounted auth/data are read-only and
+7. Initialize the configuration baseline once using the [configuration setup](#content-configuration-without-image-rebuilds)
+   below, or restore its full cache and pin from backup. Then run
+   `sh newsletter/bootstrap.sh check`. Mounted auth/data/config are read-only and
    the check containers have no network; this checks permissions, SDK presence,
    configuration and matching trigger capabilities, not credential validity.
    It neither refreshes login nor opens SQLite. Errors explain what to repair.
@@ -99,6 +103,87 @@ support logs, or chat. Do not copy the whole interactive `~/.codex` directory.
    docker compose ps newsletter newsletter-trigger
    docker compose logs --tail 40 newsletter-trigger
    ```
+
+## Content configuration without image rebuilds
+
+Editorial configuration lives in the existing **public** `ziyixi/newsletter`
+repository under `content-config/`. Configuration-only commits run configuration
+validation/rendering CI and publish one `bundle.json` to `published`; they do not
+rebuild the service image. Do not put credentials, recipients, private events or
+identifying personal notes in this public directory. Deployment secrets remain
+in their existing private files; a content bundle cannot grant send authority.
+
+The `newsletter-config-sync` service anonymously reads GitHub every 900 seconds:
+it resolves `published` to one exact commit, downloads the whole bundle at that
+commit, validates it with the installed engine, and atomically activates it. It
+does not download moving files individually, follow redirects, or need a new
+GitHub key. Anonymous GitHub rate limits and outages preserve the last validated
+configuration. The sync process has **no SQLite**, service auth, provider env,
+Docker socket or published ports. It cannot start research or send mail.
+Newsletter reads the same directory through a read-only bind mount and freezes
+the configuration for each edition; changing configuration never alters an
+already running or frozen edition. The daily 07:00 Los Angeles trigger and its
+5400/7200-second budgets are unchanged and do not depend on sync health.
+
+On a fresh installation, explicitly seed the bundled baseline once before the
+normal bootstrap check. The directory must already exist, be UID/GID 10001 and
+mode 700; the seed command refuses to overwrite an existing active configuration:
+
+```sh
+docker compose run --rm --no-deps newsletter-config-sync seed
+docker compose run --rm --no-deps newsletter-config-sync once
+docker compose run --rm --no-deps newsletter-config-sync status
+docker compose up -d --no-deps newsletter-config-sync
+```
+
+`seed` is offline and makes no model/provider requests. `once` contacts only
+public GitHub; if no compatible publication exists yet, it reports the failure
+and retains the seeded baseline. A fresh system without a valid baseline fails
+its startup checks; it does not silently fabricate partial configuration.
+The ordinary sync `run` command never seeds or repairs missing state implicitly.
+
+For everyday content changes, edit `content-config/`, push, inspect its publish
+CI, and wait at most one polling interval. No service restart is needed, and
+**do not run `update.sh`** for a configuration-only update. For an immediate pull
+use the same `once` command above. Concurrent writer commands are rejected with
+`CONFIG_WRITER_BUSY`; let the in-progress request finish and retry the command.
+
+Read the status without calling GitHub or modifying any service state:
+
+```sh
+docker compose run --rm --no-deps newsletter-config-sync status
+docker compose exec -T newsletter python -m newsletter.config_sync status
+```
+
+Status includes wanted published commit, active revision/digest, local pin,
+last attempt/success and a safe error code. A healthy sync process can still
+report a failed update: it means the reader still has a valid baseline and the
+poller is alive, not that the latest published configuration was accepted.
+
+To pause automatic activation, pin the current validated release:
+
+```sh
+docker compose run --rm --no-deps newsletter-config-sync pin
+```
+
+To roll back, append a previously cached 64-character digest to that command.
+Only complete, valid local releases are eligible; rollback never edits SQLite,
+send receipts or historical editions. Pin intent is persisted before activation
+so the next poll/restart can finish an interrupted rollback locally, and later
+polls do not immediately overwrite it. Resume published updates explicitly:
+
+```sh
+docker compose run --rm --no-deps newsletter-config-sync unpin
+docker compose run --rm --no-deps newsletter-config-sync once
+```
+
+Back up the entire `config/newsletter/` directory, including `active.json`,
+`releases/`, `pin.json` (when present) and synchronization status. The backup
+service includes a read-only mount for it. On migration restore this directory
+alongside the existing data/env/auth requirements, or explicitly seed a fresh
+baseline if the previous configuration history/pin is intentionally not retained.
+New node capabilities, API/schema changes or unsupported template features still
+require a tested engine image update; a bundle cannot change executable Python.
 
 ## Notion materials and edition archive
 
@@ -206,10 +291,12 @@ file at build time; both the image default and Compose set the same `TZ`.
 so both settings must remain aligned. The crontab has no `CRON_TZ` override.
 
 Compose explicitly selects `NEWSLETTER_WORKFLOW=dag` and a 5400-second
-(90-minute) content-workflow deadline. The versioned recipe and discovery
-instructions are packaged in the pinned newsletter image; no external routine
-or in-service cron is needed. Changes to those packaged files require a tested
-newsletter image release, not edits inside a running container.
+(90-minute) content-workflow deadline. Each new run freezes the active validated
+configuration, including its recipe, discovery instructions, editorial policy and
+email template. Updating `content-config/` publishes a configuration release;
+only new engine capabilities require a tested image release. The packaged files
+remain the explicit fresh-install baseline and legacy-run fallback. No external
+routine, in-service content cron or edits inside a running container are needed.
 
 The service owns a topic-first publication DAG. All selected topics receive a
 researched brief and independent review before selected topics are deepened.
@@ -374,24 +461,28 @@ subsequent fix is needed; sender-side idempotency is not a replacement for it.
 ## Migration checklist: do not forget login
 
 - Record the deployed commit/image digest and inspect pending jobs/sends.
-- Stop the old trigger, then the old newsletter. Keep both stopped through the
-  transfer so no SQLite writer or auth refresh races with the snapshot.
+- Stop the old trigger and configuration synchronizer, then the old newsletter.
+  Keep them stopped through the transfer so no SQLite writer, configuration
+  activation or auth refresh races with the snapshot.
 - Take a consistent snapshot of the **entire** `data/newsletter/` directory,
   including SQLite WAL/SHM files if present. A plain copy of a live database is
   not a safe backup; the existing generic backup mount alone does not establish
   SQLite consistency.
-- Transfer the two private env files and data over a trusted channel. Transfer
+- Transfer the two private env files, data and complete `config/newsletter/`
+  cache (including its active pointer and optional pin) over a trusted channel. Transfer
   the latest dedicated `auth.json` separately into an otherwise fresh auth
   directory, or perform a fresh dedicated login on the destination. Do not copy
   login-generated `tmp/` helper links, logs, personal `config.toml`, or host CLI
   binaries: the pinned container recreates its own runtime cache. Do not restore
   stale auth from an image or original seed.
-- Preserve secret file modes and restore UID/GID 10001 on the two dedicated
+- Preserve secret file modes and restore UID/GID 10001 on the three dedicated
   container-writable directories. Keep service/trigger token pairs identical.
 - Preserve both Notion data source IDs and the explicit private-archive policy.
   Reauthorize both databases if using a new connection; initialize missing
   schemas explicitly with `notion_cli setup --apply`, never by deleting SQLite.
-- Restore the same immutable image digest first. Run bootstrap check, start only
-  newsletter, and verify real readiness before enabling exactly one scheduler.
+- Restore the same immutable image digest first. Check the restored configuration
+  with `newsletter-config-sync status`; seed only an intentionally fresh store.
+  Run bootstrap check, start newsletter and configuration sync, and verify real
+  readiness before enabling exactly one content scheduler.
 - Do not run old and new hosts against the same login/database concurrently.
   Retain a private rollback copy until content and delivery have been checked.
