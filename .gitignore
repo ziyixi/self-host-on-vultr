@@ -26,3 +26,4 @@ config/newsletter/
 __pycache__/
 *.py[cod]
 .pytest_cache/
+newsletter/.maintenance.lock

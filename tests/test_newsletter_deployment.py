@@ -168,7 +168,8 @@ class DeploymentTests(unittest.TestCase):
         self.assertEqual(values["NEWSLETTER_NOTION_ARCHIVE_PRIVATE"], "false")
         self.assertNotIn("NOTION_DATA_SOURCE_ID", values)
         self.assertIn("# NOTION_DATA_SOURCE_ID=", example)
-        for name in ("NEWSLETTER_INGEST_TOKEN", "NEWSLETTER_EDITOR_TOKEN", "NEWSLETTER_SEND_TOKEN",
+        self.assertNotIn("NEWSLETTER_INGEST_TOKEN", values)
+        for name in ("NEWSLETTER_EDITOR_TOKEN", "NEWSLETTER_SEND_TOKEN",
                      "RESEND_API_KEY", "TODO_API_USER", "TODO_API_PASSWORD"):
             self.assertEqual(values[name], "")
         # Notion authority belongs only to the service, never the trigger.

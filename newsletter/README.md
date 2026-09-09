@@ -34,7 +34,7 @@ support logs, or chat. Do not copy the whole interactive `~/.codex` directory.
    create fake credentials to silence a missing-file error.
 3. Create NEW private env files from their examples, with mode 600. Do not replace
    existing files. Use raw values, without shell quotes or interpolation. Add
-   Notion/Todofy/Resend configuration and three distinct random service tokens of
+   Notion/Todofy/Resend configuration and two distinct random service tokens of
    at least 24 characters. The trigger receives only the matching editor/send
    tokens; bootstrap rejects any other non-comment line in its private env file
    without echoing the offending key or value. Check the final recipient and
@@ -339,15 +339,16 @@ new empty database to bypass that protection. Do not run test sends casually or
 start two schedulers.
 
 After a confirmed normal delivery, an explicitly requested corrected preview can
-use `POST /v1/editions/{id}/send-verification` with the send capability, its exact
-frozen render hash and a stable request key. Without an extra approval this is
+use the local `newsletter admin send-verification` command through the
+[maintenance wrapper](#explicit-local-maintenance), with its exact frozen render
+hash and a stable request key. Without an extra approval this is
 limited to one verification per date. If the user expressly requests another
 new version after that verification was accepted, also supply
-`X-Newsletter-Verification-After: <latest accepted verification edition UUID>`.
+`--after-verification <latest accepted verification edition UUID>`.
 This approves only one successor to that receipt: stale predecessors, competing
 children and unconfirmed/ambiguous deliveries are rejected. Repeating an existing
-approval never makes another provider call. The normal cron client never supplies
-this header or uses the verification route. Do not change the issue date, delete
+approval never makes another provider call. The normal cron client never invokes
+this administrative command. Do not change the issue date, delete
 receipts or send directly through Resend to bypass these checks.
 
 If an operator explicitly requests a fresh test of a replaced architecture after
@@ -377,6 +378,81 @@ email.
 
 Provider acceptance is not proof of Gmail inbox delivery. Check the recipient's
 inbox or authorized provider delivery status before calling a test successful.
+
+## Explicit local maintenance
+
+The network API supports scheduled collection, run/edition reads, frozen
+previews, and normal guarded delivery. Manual packet submission, inbox reads,
+direct edition preparation, standalone rendering, story recovery, and
+verification-send HTTP entry points are retired. Historical SQLite rows and
+protobuf messages remain readable; removing an endpoint never deletes a receipt.
+
+Story recovery and verification sends use the operator CLI only. On the Linux
+host, run the Python 3 standard-library wrapper from the deployment checkout:
+
+```sh
+python3 newsletter/maintenance.py retry-stories \
+  --parent-run-id <terminal-parent-UUID> \
+  --request-key <fixed-recovery-key> --issue-date <original-YYYY-MM-DD>
+
+# Only for a separately authorized verification of this frozen edition:
+python3 newsletter/maintenance.py send-verification \
+  --edition-id <frozen-edition-UUID> --request-key <fixed-verification-key> \
+  --expected-render-hash <frozen-64-character-hash>
+```
+
+For an explicitly approved successor, append `--after-verification` and the
+latest accepted verification edition UUID. Keep the same IDs and request key
+when checking an interrupted command; a new key does not resolve an ambiguous
+provider submission. Neither command authorizes a new scheduled content run or
+an ordinary daily send. Recovery creates a child for the normal worker to resume;
+if the service was already stopped, it stays stopped until the operator starts it.
+
+The wrapper first reads `newsletter admin status`. Any active task or external
+submission, missing database, invalid status, or changing container state refuses
+maintenance. It records which Newsletter containers were running, pauses only
+their trigger and configuration sync, checks again, stops Newsletter, and checks
+once more. The CLI then takes the same `data/newsletter/service.lock` as the normal
+service and independently verifies its state. It never runs database recovery to
+make an unsafe operation appear idle. Do not use a second checkout/container or
+delete lock files to bypass a refusal.
+
+Queued tasks are not active work: they remain unchanged and are handled only
+after the original service resumes. Status uses SQLite `mode=ro` without changing
+business records, initializing Store, or recovering jobs. SQLite may create or
+update WAL/SHM coordination sidecars to read committed live state consistently;
+this is not a filesystem-zero-write guarantee. Do not replace it with immutable
+reads that can miss active WAL transactions.
+
+A separate `newsletter/.maintenance.lock` serializes host wrappers. The file is
+ignored by Git and remains after successful use; the kernel lock is released when
+the process exits. Leave it in place. The wrapper invokes the already pinned
+image with `--pull never`, existing private env/auth mounts, no published port,
+and no additional capabilities. It does not read or print private env/auth files,
+modify Compose, call `update.sh`, recreate containers, or touch other services.
+
+On success, CLI refusal, or interruption, only originally running containers are
+started again. Newsletter must become healthy before the trigger is restarted.
+If restoration fails, inspect `docker compose ps newsletter newsletter-trigger
+newsletter-config-sync` and keep the trigger stopped until the service is healthy;
+then start only containers that were running before maintenance. Do not blindly
+repeat the operation. A killed host, Docker outage, or forced process kill can
+still require this manual restoration. The daily schedule remains **07:00
+America/Los_Angeles**, with no backfill of a missed morning.
+
+Read the maintenance status without stopping anything or calling providers:
+
+```sh
+docker compose exec -T newsletter newsletter admin status
+```
+
+Before an image/schema upgrade, record the current image and config digest and
+make a consistent stopped-service backup of all `data/newsletter/`, including
+WAL/SHM files if present. Keep `env/` and the whole configuration cache protected,
+and preserve the latest dedicated auth separately. Roll back code/config only
+when compatible with the current ledger; after any new send attempt, never
+restore an older database that would lose its receipt. The wrapper itself does
+not create backups or silently restore historical state.
 
 ## Source-first editorial configuration
 
@@ -436,8 +512,9 @@ Notion, Todofy or Resend, and never creates an issue. Runtime startup also check
 all schema variants locally before spending tokens on discovery. See the service's
 [provider acceptance guide](https://github.com/ziyixi/newsletter/blob/main/docs/provider-acceptance.md).
 
-After a fixed shared writer-startup failure, an editor-authorized
-`POST /v1/runs/{parent_id}/retry-stories` can create exactly one child run using
+After a fixed shared writer-startup failure, an explicitly authorized
+`newsletter admin retry-stories` through the maintenance wrapper can create
+exactly one child run using
 the same issue date and a fixed request key. It verifies and reuses the successful
 upstream artifact hashes, then performs fresh writing and independent review.
 It preserves the terminal parent and includes both runs' token usage. It cannot
