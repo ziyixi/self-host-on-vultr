@@ -65,7 +65,7 @@ def main() -> int:
             except (ValueError, KeyError):
                 raise DoctorError(
                     "Invalid service settings; compare private env field names with "
-                    "env/newsletter.env.example, including three distinct tokens and provider configuration."
+                    "env/newsletter.env.example, including two distinct tokens and provider configuration."
                 ) from None
             if (settings.mode, settings.editor_backend, settings.notion_backend,
                     settings.todofy_backend, settings.mail_backend) != (
