@@ -490,27 +490,109 @@ services. Every persistent change remains an explicit operator step.
 ## Upgrade and rollback
 
 Wait for newsletter CI to test and publish its Linux/amd64 image. Update the
-versioned `x-newsletter-image` digest; the service and cron client must move
-together. Inspect the deployment Git diff and preserve private configuration.
+versioned `x-newsletter-image` digest, inspect the deployment Git diff, and wait
+for deployment CI to pass. The service, configuration synchronizer, and rebuilt
+cron client must use the same tested release. Do not run `update.sh`, prune the
+previous image, or recreate unrelated services.
 
-```sh
-docker compose stop newsletter-trigger
-docker compose pull newsletter
-docker compose build newsletter-trigger
-sh newsletter/bootstrap.sh check
-docker compose up -d --no-deps newsletter
-# Wait for healthy. Explicit real schema check (uses a small model allowance):
-docker compose exec -T newsletter python -m newsletter.schema_smoke --allow-model-calls
-# Inspect a real frozen preview and separately authorized delivery, then:
-docker compose up -d --no-deps newsletter-trigger
-```
+The following sequence assumes all three Newsletter containers were running.
+Record their original state first; leave any originally stopped component stopped
+unless its startup was separately requested. The maintenance wrapper performs an
+explicit admin operation, not an image upgrade or a backup.
 
-The offline CI/startup smoke cannot prove live schema acceptance. The opt-in
-command above checks the production writer/reviewer schemas against the configured
-model using only empty diagnostic envelopes; it does not access the service DB,
-Notion, Todofy or Resend, and never creates an issue. Runtime startup also checks
-all schema variants locally before spending tokens on discovery. See the service's
-[provider acceptance guide](https://github.com/ziyixi/newsletter/blob/main/docs/provider-acceptance.md).
+1. Record the old deployment commit, service/config-sync image digests, trigger
+   image ID, active configuration revision/digest and pin, and existing run,
+   frozen edition and delivery/Notion receipt IDs. Read `newsletter admin status`
+   and independently inspect queued work: `busy=false` excludes queued tasks.
+   Account for pending Notion synchronization too, since service startup resumes
+   background workers. Wait for active tasks and external submissions to finish;
+   do not cancel them, clear their state, or create a new attempt to make the
+   upgrade proceed. If the old image lacks `admin status`, use a reviewed,
+   schema-compatible read-only SQLite inspection; a missing command is not proof
+   of idle state. A deployment intended to perform no queued work requires an
+   empty queue before restart.
+2. Pull/build the tested images while the existing containers remain unchanged:
+
+   ```sh
+   docker compose pull newsletter newsletter-config-sync
+   docker compose build newsletter-trigger
+   ```
+
+3. Pause the producers, recheck active and queued work, then stop the service:
+
+   ```sh
+   docker compose stop newsletter-trigger newsletter-config-sync
+   docker compose exec -T newsletter newsletter admin status
+   ```
+
+   Inspect `busy` and the counts, and recheck queued work separately. A zero
+   status-command exit code alone does not mean idle. Wait until the active-work
+   counts are zero and the queue meets the approved restart condition before
+   continuing:
+
+   ```sh
+   docker compose stop newsletter
+   docker compose ps --all newsletter newsletter-trigger newsletter-config-sync
+   ```
+
+   Use the same reviewed read-only inspection if the old image has no status CLI.
+   Continue only when all three containers are stopped and no other writer owns
+   these directories. Preserve `service.lock`; do not bypass it with a second
+   checkout or container.
+4. Take and verify a consistent stopped-service backup of **all**
+   `data/newsletter/`, including any WAL/SHM files, frozen artifacts and every
+   delivery/Notion ledger. Protect the two private env files and the entire
+   `config/newsletter/` cache, including active pointer, releases and pin. Save
+   the latest dedicated auth separately without printing its contents. Record
+   the backup location and preserve ownership/modes. A live directory copy or
+   the presence of a generic backup mount does not establish SQLite consistency.
+5. Validate the existing active configuration with the newly pinned engine,
+   without starting its service, providers or poller:
+
+   ```sh
+   docker compose run --rm --no-deps --pull never newsletter-config-sync status
+   sh newsletter/bootstrap.sh check
+   ```
+
+   The status command validates the actual cached bundle and pin against the new
+   engine. CI validation of newly authored configuration is not a substitute.
+   Keep the service stopped if this fails; do not seed over the existing cache,
+   drop its pin, or replace the database to force compatibility.
+6. Recreate only the originally running service/config-sync containers, keeping
+   the trigger stopped until both checks complete:
+
+   ```sh
+   docker compose up -d --no-deps --wait --wait-timeout 120 newsletter
+   docker compose up -d --no-deps --wait --wait-timeout 120 newsletter-config-sync
+   docker compose exec -T newsletter newsletter admin status
+   docker compose exec -T newsletter python -m newsletter.config_sync status
+   ```
+
+   Startup may migrate the database and performs enabled-provider read checks;
+   it does not generate a diagnostic issue or send a test email. Check health,
+   safe diagnostics and actual configuration status, not only container liveness.
+   Use read-only GetRun/GetEdition requests and an existing frozen preview GET
+   to verify known records. Compare frozen content hashes and delivery/Notion
+   receipt fields with the baseline, allowing only the documented schema
+   migration; a changed SQLite file hash alone is not evidence of lost receipts.
+7. Only after those checks pass, recreate the originally running trigger:
+
+   ```sh
+   docker compose up -d --no-deps newsletter-trigger
+   docker compose ps newsletter newsletter-trigger newsletter-config-sync
+   ```
+
+   Verify it uses the rebuilt client, exactly one scheduler is enabled, and
+   `0 7 * * *` still runs in `America/Los_Angeles`. A restart does not backfill
+   a missed morning. If any check fails, keep the trigger stopped and inspect
+   the failure rather than repeatedly restarting or submitting another run.
+
+Normal upgrade acceptance does not invoke models, create a run, call
+`send-verification`, or send a test email. Runtime startup validates schema
+variants locally; offline CI/startup checks do not prove live model acceptance,
+mail-provider acceptance, or inbox delivery. A real schema probe or delivery
+requires separate explicit authorization, outside this sequence. See the
+service's [provider acceptance guide](https://github.com/ziyixi/newsletter/blob/main/docs/provider-acceptance.md).
 
 After a fixed shared writer-startup failure, an explicitly authorized
 `newsletter admin retry-stories` through the maintenance wrapper can create
@@ -523,9 +605,12 @@ it does not send mail. This is an explicit post-fix recovery action, not a cron
 retry loop. Never reset attempt rows or rerun discovery just to change a receipt.
 
 Keep the previous digest and a consistent data backup. Avoid pruning old images
-until validation finishes. A code rollback may also require the corresponding
-database backup if a future release changes its schema. Do not change a live
-database's configured delivery backend/recipient or reuse mock storage.
+until validation finishes. Roll back code/config only if they can read the
+current schema and preserve its delivery/Notion receipts and idempotency guards.
+A database restore requires proof that no later external side effect or receipt
+would be lost; never restore an older database after a new send attempt. Prefer
+rolling forward when compatibility is uncertain. Do not change a live database's
+configured delivery backend/recipient or reuse mock storage.
 
 The prompt-promotion release migrates the verification ledger transactionally
 from one row per date to a uniquely linked sequence, preserving all old rows.
