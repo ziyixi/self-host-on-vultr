@@ -495,6 +495,14 @@ for deployment CI to pass. The service, configuration synchronizer, and rebuilt
 cron client must use the same tested release. Do not run `update.sh`, prune the
 previous image, or recreate unrelated services.
 
+If `env/newsletter.env` explicitly sets `NEWSLETTER_MODEL`, align it with the
+model supported by the new image (currently `gpt-6-sol`) at cutover. Back up the
+private env first, change only that key, and never print or commit the file.
+Recreate the service after the change: a container restart does not reload its
+environment. Before cutover, use a one-off container with the candidate image
+and dedicated Codex login to verify that the account can actually select the
+new model; a locally green CI or offline bootstrap check cannot prove access.
+
 The following sequence assumes all three Newsletter containers were running.
 Record their original state first; leave any originally stopped component stopped
 unless its startup was separately requested. The maintenance wrapper performs an

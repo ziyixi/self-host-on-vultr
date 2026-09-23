@@ -6,7 +6,7 @@ networks:
   newsletter:
 
 # Replace only with a tested, immutable newsletter image when upgrading.
-x-newsletter-image: &newsletter-image ghcr.io/ziyixi/newsletter@sha256:ea2e4a8910b0996efcb16579eb76feaf58da46a8c2601865920c1992c6590754
+x-newsletter-image: &newsletter-image ghcr.io/ziyixi/newsletter@sha256:578371ef7f4bc3608e5a11df7bf53274782a9b30e5d6e8fffed2455a1f054b5f
 
 volumes: {}
 
