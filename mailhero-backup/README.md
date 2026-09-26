@@ -2,6 +2,8 @@
 
 This directory installs a Python/GPG/systemd collector, separate from Compose and the existing offen volume-backup service. It does not run the Mail Hero application on this server. The application remains a Cloudflare Worker. Do not mount these directories into the existing `./data` or private `env` backup trees: that would recursively back up the collector's own snapshots.
 
+The backup covers only Mail Hero application data and recovery material: its D1 schema and records, stored email objects and frozen webhook payloads, coordinator state for recovery, deletion records, and the already encrypted application-key escrow. It is not an operating-system, host-filesystem, or other-service backup. The installer needs `sudo` to install a systemd service and timer; those privileges set up scheduling and do not expand what the collector backs up. The scheduled collector runs as `xiziyi`.
+
 | Purpose | Server path |
 | --- | --- |
 | Reviewed public Mail Hero source, detached at an exact commit | `/home/xiziyi/mail-hero-backup-code` |
@@ -17,7 +19,7 @@ The collector uses only `BACKUP_TOKEN`, independent `BACKUP_RECEIPT_KEY`, and an
 
 Confirm `/usr/bin/python3`, `/usr/bin/gpg`, Git and systemd are installed. Provision the mode-0700 config directory owned by `xiziyi`, the completed mode-0600 env file, the public key and encrypted escrow. Verify that `BACKUP_RECIPIENT` is the full 40- or 64-hex public-key fingerprint, and that the exact Mail Hero HTTPS origin and dedicated Access service policy are in place. This installer never logs into Cloudflare or modifies Access policies.
 
-Use the **full pushed Mail Hero commit SHA** selected for this deployment. It is supplied at install time because recording this same repository's final commit inside that commit would be circular. The host stores the selected pin in `source-commit`; the service checks both Git HEAD and the collector file's cleanliness before every run.
+Use the **full pushed Mail Hero commit SHA** selected for this deployment. Mail Hero and this deployment repository have independent releases; the installer pins the selected Mail Hero collector release, not this repository's current commit or a moving branch. The host stores that pin in `source-commit`; the service checks both Git HEAD and the collector file's cleanliness before every run.
 
 ```sh
 sudo bash mailhero-backup/install.sh \
@@ -52,7 +54,7 @@ sudo bash mailhero-backup/install.sh \
 sudo systemctl list-timers mailhero-backup.timer --no-pager
 ```
 
-The timer starts at **04:17 UTC**, with up to 10 minutes jitter. The existing offen backup schedule has not been inspected; compare the real schedules before enabling and choose another time if they overlap. `Persistent=true` catches a missed run after host downtime. The collector uses an independent backup bucket and local encrypted copies, keeping 7 daily and 4 weekly snapshots after verified success; this changes neither existing Vultr backup retention nor its private credentials.
+The daily timer is scheduled for **04:17 UTC**, with up to 10 minutes jitter. The existing offen backup schedule has not been inspected; compare the real schedules before enabling and choose another time if they overlap. `Persistent=true` catches a missed run after host downtime or while the timer was inactive, so enabling the timer can trigger a catch-up collection soon afterward instead of waiting until the next day. The collector uses an independent backup bucket and local encrypted copies, retaining the latest verified snapshot for each of up to 7 distinct days and 4 distinct ISO weeks. Overlapping selections share one archive, so this keeps at most 11 archives, not 11 guaranteed copies. This changes neither existing Vultr backup retention nor its private credentials.
 
 To stop scheduling without deleting backups:
 
