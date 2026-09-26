@@ -73,6 +73,9 @@ if printf '%s\n' "$listing" | awk -F: '$1=="sec" { found=1 } END { exit !found }
   echo 'Private keys must not be installed on the collector host.' >&2; exit 1
 fi
 
+source "$source_dir/upgrade-guard.sh"
+prepare_mailhero_backup_upgrade
+
 # Refuse drift before changing an existing checkout. No reset/clean operation
 # is used, and this path is separate from the existing Compose backup tree.
 if [[ -e "$code" ]]; then

@@ -60,7 +60,7 @@ To stop scheduling without deleting backups:
 sudo systemctl disable --now mailhero-backup.timer
 ```
 
-Updating requires another explicit immutable Mail Hero SHA. Repeat the default install command to update the source with the timer disabled, perform the appropriate regression/recovery check, then enable explicitly. No command in this directory deploys the Mail Hero Worker, changes Todofy, imports a production database, or sends mail.
+Updating requires another explicit immutable Mail Hero SHA. Before changing source, the installer disables the existing timer and refuses to continue if the backup service is active or transitioning. It never kills a running backup: wait for that run to finish, then rerun the installer. Repeat the default install command to update the source with the timer disabled, perform the appropriate regression/recovery check, then enable explicitly. No command in this directory deploys the Mail Hero Worker, changes Todofy, imports a production database, or sends mail.
 
 ## Offline verification
 
