@@ -171,12 +171,20 @@ services:
 
   # * =============================================== todofy =============================================== * #
   todofy:
-    image: ghcr.io/ziyixi/todofy:latest
+    # GitHub CI: ziyixi/todofy commit 5f0e8c6232b24084a0fed99d975f4b2db5272235.
+    image: ghcr.io/ziyixi/todofy@sha256:632dba1a1b70ab31667d7bfacffbbd50ef1e1b06dc565c0cc47c66733f831675
     container_name: todofy
     ports:
       - "10003:8080"
     restart: always
     env_file: ./env/todofy.env
+    environment:
+      TODOFY_MAIL_INBOX_PATH: /var/lib/todofy-mail/inbox.sqlite
+      TODOFY_MAIL_WEBHOOK_TOKEN_FILE: /run/secrets/todofy-mail-webhook-token
+      TODOFY_MAIL_SOURCE_ID: mail-hero-personal
+    volumes:
+      - ./data/todofy-mail:/var/lib/todofy-mail
+      - ./env/todofy-mail-webhook.env:/run/secrets/todofy-mail-webhook-token:ro
     networks:
       - allexport
 
