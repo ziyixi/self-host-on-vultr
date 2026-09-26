@@ -4,6 +4,8 @@ networks:
   unami:
   # No published ports; this bridge still permits outbound provider requests.
   newsletter:
+  # Dedicated outbound-only bridge for the Mail Hero backup client.
+  mailhero-backup:
 
 # Replace only with a tested, immutable newsletter image when upgrading.
 x-newsletter-image: &newsletter-image ghcr.io/ziyixi/newsletter@sha256:a36ab4fa6217df7ac2221b8b836f4066d9a220f9bfc11a9a1e612f28c9e2bb44
@@ -11,6 +13,51 @@ x-newsletter-image: &newsletter-image ghcr.io/ziyixi/newsletter@sha256:a36ab4fa6
 volumes: {}
 
 services:
+  # * =============================================== Mail Hero backup =============================================== * #
+  mailhero-backup:
+    # GitHub CI: ziyixi/mail-hero commit 97f8886241b5a85d256099b293ada8703bb779c2.
+    image: ghcr.io/ziyixi/mail-hero-backup@sha256:0206ec216c9e16bdf97b2f47c60915858d3696ce32425c76c9e55a06ce4f7f3a
+    platform: linux/amd64
+    command: [run]
+    init: true
+    restart: unless-stopped
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      BACKUP_AT_UTC: "04:17"
+    volumes:
+      - type: bind
+        source: /home/xiziyi/.config/mail-hero-backup
+        target: /run/mailhero-backup
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /home/xiziyi/mail-hero-backup
+        target: /var/lib/mailhero-backup
+        bind:
+          create_host_path: false
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=128m,mode=1777
+    healthcheck:
+      test: [CMD, python3, -I, /app/container.py, health]
+      interval: 60s
+      timeout: 10s
+      start_period: 90s
+      retries: 3
+    mem_limit: 512m
+    cpus: 1
+    pids_limit: 64
+    stop_grace_period: 4m
+    networks: [mailhero-backup]
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
+
   # * =============================================== newsletter =============================================== * #
   newsletter:
     image: *newsletter-image

@@ -1,74 +1,89 @@
-# Mail Hero independent backup task
+# Mail Hero backup with Docker Compose
 
-This directory installs a Python/GPG/systemd collector, separate from Compose and the existing offen volume-backup service. It does not run the Mail Hero application on this server. The application remains a Cloudflare Worker. Do not mount these directories into the existing `./data` or private `env` backup trees: that would recursively back up the collector's own snapshots.
+`mailhero-backup` is an independent backup client in the main `docker-compose.yml`. Mail Hero itself remains on Cloudflare. The client uses a GitHub CI image pinned by immutable GHCR digest; Python, GPG and the scheduler are inside that image. Normal operation needs Docker Compose and the existing private directories, without a host source checkout, root service or systemd timer.
 
-The backup covers only Mail Hero application data and recovery material: its D1 schema and records, stored email objects and frozen webhook payloads, coordinator state for recovery, deletion records, and the already encrypted application-key escrow. It is not an operating-system, host-filesystem, or other-service backup. The installer needs `sudo` to install a systemd service and timer; those privileges set up scheduling and do not expand what the collector backs up. The scheduled collector runs as `xiziyi`.
+The client backs up only Mail Hero: D1 schema and records, stored email objects and frozen webhook payloads, coordinator recovery state, deletion records, and the encrypted application-key escrow. It does not mount the host filesystem, Docker socket, Todofy, Newsletter, or another service's database. Its two directories stay outside this stack's `./data` and `./env` backup roots, so the existing offen backup does not recursively collect these snapshots.
 
-| Purpose | Server path |
-| --- | --- |
-| Reviewed public Mail Hero source, detached at an exact commit | `/home/xiziyi/mail-hero-backup-code` |
-| Private staging, encrypted archives and local receipts | `/home/xiziyi/mail-hero-backup` |
-| Dedicated machine credentials (xiziyi, mode 0600) | `/home/xiziyi/.config/mail-hero-backup/credentials.env` |
-| Armored public key only | `/home/xiziyi/.config/mail-hero-backup/recovery-public.asc` |
-| Already public-key-encrypted application-key escrow | `/home/xiziyi/.config/mail-hero-backup/credential-key.gpg` |
-| Deployment's exact Mail Hero commit (public metadata) | `/home/xiziyi/.config/mail-hero-backup/source-commit` |
+| Host path | Container path | Access |
+| --- | --- | --- |
+| `/home/xiziyi/.config/mail-hero-backup` | `/run/mailhero-backup` | Read only |
+| `/home/xiziyi/mail-hero-backup` | `/var/lib/mailhero-backup` | Private staging, encrypted archives, receipts and scheduler state |
 
-The collector uses only `BACKUP_TOKEN`, independent `BACKUP_RECEIPT_KEY`, and an Access service token restricted to the backup API. It needs no Cloudflare administrator token, Wrangler login, R2 S3 credential or recovery private key. Keep the private recovery key on the trusted recovery device. Prepare `credential-key.gpg` on that device from the existing application encryption key; never put the plaintext key on the server. The completed env file stays on the host and is never committed or pasted into chat.
+Both directories belong to `xiziyi` (`1000:1000`) and have mode `0700`. The configuration directory already contains:
 
-## Prepare and install, with scheduling disabled
+- `credentials.env`, mode `0600`: `MAIL_HERO_ORIGIN`, verified full `BACKUP_RECIPIENT` fingerprint, `BACKUP_TOKEN`, independent `BACKUP_RECEIPT_KEY`, and the dedicated Access service-token pair.
+- `recovery-public.asc`: the verified public key only.
+- `credential-key.gpg`: the application encryption key already encrypted to that public key.
 
-Confirm `/usr/bin/python3`, `/usr/bin/gpg`, Git and systemd are installed. Provision the mode-0700 config directory owned by `xiziyi`, the completed mode-0600 env file, the public key and encrypted escrow. Verify that `BACKUP_RECIPIENT` is the full 40- or 64-hex public-key fingerprint, and that the exact Mail Hero HTTPS origin and dedicated Access service policy are in place. This installer never logs into Cloudflare or modifies Access policies.
+Reuse these files. The runtime reads the literal credentials file directly; Compose has no `env_file` for this service. Do not paste credentials into commands/chat, source the file, or copy secrets into Compose variables. No recovery private key, Cloudflare administrator token, Wrangler login or R2 S3 credential belongs in the container. The private recovery key stays on the trusted recovery device. Missing host directories fail instead of being silently created by Docker.
 
-Use the **full pushed Mail Hero commit SHA** selected for this deployment. Mail Hero and this deployment repository have independent releases; the installer pins the selected Mail Hero collector release, not this repository's current commit or a moving branch. The host stores that pin in `source-commit`; the service checks both Git HEAD and the collector file's cleanliness before every run.
+## First start
 
-```sh
-sudo bash mailhero-backup/install.sh \
-  --commit FULL_40_HEX_MAIL_HERO_COMMIT \
-  --recipient FULL_VERIFIED_GPG_FINGERPRINT
-sudo systemctl is-enabled mailhero-backup.timer
-```
-
-The expected timer state is **disabled**. The installer validates credentials' ownership and permissions without printing values, checks the public key fingerprint, refuses a dirty/unexpected checkout, fetches and checks out only the requested commit, and installs a root-owned source tree readable by `xiziyi`. It does not reset/clean an existing checkout or touch Compose. The service runs as `xiziyi` with read-only home/system access except the dedicated state directory; `/tmp` is private to the service.
-
-Run the first collection under supervision:
+From this deployment repository on the server, check ownership and permissions without printing contents:
 
 ```sh
-sudo systemctl start mailhero-backup.service
-sudo systemctl status mailhero-backup.service --no-pager
-sudo journalctl -u mailhero-backup.service -n 30 --no-pager
+id -u xiziyi
+id -g xiziyi
+stat -c '%u:%g %a %n' \
+  /home/xiziyi/.config/mail-hero-backup \
+  /home/xiziyi/mail-hero-backup \
+  /home/xiziyi/.config/mail-hero-backup/credentials.env
 ```
 
-Success means export, public-key encryption, remote upload, complete encrypted read-back checksum verification, and durable signed finish all succeeded. The private local output contains `latest-success.json` and encrypted snapshots. A new snapshot is not successful merely because an upload exists. The collector has a 30-minute lease limit; failures leave the preceding verified backup intact and do not automatically change plans or retention.
+Expect UID/GID `1000:1000`, directories `700`, and credentials `600`. The pinned image must exist and the exact Mail Hero origin must already allow the dedicated Access service token for its backup API. Image publication and valid credentials are separate checks.
 
-## Verify recovery, then explicitly enable
-
-On the recovery device, use the same pinned release's `deploy/backup/mailhero_backup.py restore` command and its runbook. Supply the verified encrypted archive SHA-256 and the latest independent deletion journal. Restore only into a new isolated local directory first. Validate D1-compatible SQL, original R2 keys/metadata, stable event IDs and payload bytes, application-key escrow decryption, and deletion handling. The restored service must remain paused; no LLM/Todoist calls are part of a restore rehearsal. The pinned Mail Hero runbook describes the separate steps for new Cloudflare resources and DO state reconstruction.
-
-After an actual successful isolated recovery rehearsal, enable scheduling explicitly:
+Pull only this service. Before enabling its scheduler, run one supervised collection:
 
 ```sh
-sudo bash mailhero-backup/install.sh \
-  --commit FULL_40_HEX_MAIL_HERO_COMMIT \
-  --recipient FULL_VERIFIED_GPG_FINGERPRINT \
-  --enable --restore-verified
-sudo systemctl list-timers mailhero-backup.timer --no-pager
+docker compose pull mailhero-backup
+docker compose run --rm --no-deps mailhero-backup once
 ```
 
-The daily timer is scheduled for **04:17 UTC**, with up to 10 minutes jitter. The existing offen backup schedule has not been inspected; compare the real schedules before enabling and choose another time if they overlap. `Persistent=true` catches a missed run after host downtime or while the timer was inactive, so enabling the timer can trigger a catch-up collection soon afterward instead of waiting until the next day. The collector uses an independent backup bucket and local encrypted copies, retaining the latest verified snapshot for each of up to 7 distinct days and 4 distinct ISO weeks. Overlapping selections share one archive, so this keeps at most 11 archives, not 11 guaranteed copies. This changes neither existing Vultr backup retention nor its private credentials.
+Success means export, public-key encryption, remote upload, complete encrypted read-back checksum verification, and signed completion all succeeded. An uploaded archive alone is not a verified backup. The preceding verified backup remains available if a new run fails. The application snapshot lease is at most 30 minutes, and incoming mail continues to archive while a valid snapshot is collected.
 
-To stop scheduling without deleting backups:
+Verify isolated recovery on the trusted recovery device using the matching Mail Hero release's `deploy/backup/mailhero_backup.py restore` command and runbook. Supply the verified archive SHA-256 and latest independent deletion journal. The rehearsal uses new isolated storage and keeps delivery paused; it must not call Todoist or an LLM. The encrypted application-key escrow needs the private recovery key on that device.
+
+After the first verified collection and recovery check, start the scheduler:
 
 ```sh
-sudo systemctl disable --now mailhero-backup.timer
+docker compose up -d --no-deps mailhero-backup
+docker compose ps mailhero-backup
+docker compose exec -T mailhero-backup python3 -I /app/container.py health
+docker compose logs --tail=30 mailhero-backup
 ```
 
-Updating requires another explicit immutable Mail Hero SHA. Before changing source, the installer disables the existing timer and refuses to continue if the backup service is active or transitioning. It never kills a running backup: wait for that run to finish, then rerun the installer. Repeat the default install command to update the source with the timer disabled, perform the appropriate regression/recovery check, then enable explicitly. No command in this directory deploys the Mail Hero Worker, changes Todofy, imports a production database, or sends mail.
+These commands affect only Mail Hero backup. The health command reports runtime/scheduling status without displaying credentials or mail; it is not proof of a complete disaster-recovery exercise. Logs should contain safe status and error codes only. Do not use `docker inspect` to dump a running container's environment or print the private config files when diagnosing a failure.
 
-## Offline verification
+## Schedule, retention and updates
+
+The container's scheduler runs daily at **04:17 UTC**, configured by `BACKUP_AT_UTC` in Compose. Scheduler state and receipts survive container replacement in the state directory. The runtime prevents overlapping collections with a lock in the shared state directory. Its scheduler does not modify the existing offen backup service.
+
+Retention keeps the latest verified snapshot for each of up to **7 distinct days and 4 distinct ISO weeks**, locally and in the independent backup bucket. Overlapping selections share one archive, so this retains at most 11 archives, not 11 guaranteed distinct copies. The latest successful receipt and deletion journal are part of the recovery procedure. Changing a container image does not delete these files.
+
+For an update, review and replace only this service's image digest with the tested CI release. Then:
 
 ```sh
-python3 -m unittest discover -s mailhero-backup -p 'test_*.py' -v
-bash -n mailhero-backup/install.sh mailhero-backup/run.sh
+docker compose pull mailhero-backup
+docker compose up -d --no-deps mailhero-backup
+docker compose exec -T mailhero-backup python3 -I /app/container.py health
 ```
 
-These checks validate the deployment guards and unit configuration without touching a host. They complement the Mail Hero repository's real SQLite/R2 fixture and GPG encryption/restore tests; they do not prove production credentials, daily scheduling or a real disaster recovery.
+Compose gives the runtime 4 minutes (240 seconds) to cancel an active collection and release its snapshot lease on shutdown. A failed/interrupted collection is not marked successful; lease expiry also restores normal application processing. Do not run the whole-stack `update.sh` or an unscoped `docker compose down` for a Mail Hero backup update. No build or package installation occurs on the server.
+
+To pause the daily scheduler without removing backups:
+
+```sh
+docker compose stop mailhero-backup
+```
+
+Resume with the scoped `up -d --no-deps` command above. For an additional manual run, use `docker compose run --rm --no-deps mailhero-backup once` directly. If a collection already holds the shared lock, the command reports that it is already running without starting a second collection. Do not start a second scheduler against the same state directory.
+
+The former `install.sh`, systemd units and host `run.sh` are retired. Do not run an old timer alongside the Compose service. No systemd timer was present in the deployment preflight; if migrating another host that has one, stop its scheduling and let an active run finish before starting Compose.
+
+## Offline deployment checks
+
+```sh
+python3 -B -m unittest discover -s tests -p 'test_mailhero_backup_deployment.py' -v
+```
+
+The contract checks use Compose's configuration parser with private env/path resolution disabled. They require Compose 5.1.0 or newer and contact no Docker daemon, Cloudflare API or mail service. They verify the service's mounts, isolation, resource limits and runtime commands. The Mail Hero repository separately tests the image, scheduler, synthetic export/encryption and isolated restore. None of these local checks proves live credentials or that a daily production backup has succeeded.

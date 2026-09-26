@@ -33,3 +33,13 @@ checking the daily start time and trigger together.
 `update.sh` remains the existing whole-stack update utility. It stops all services
 and prunes images; use the targeted commands in the newsletter runbook when
 preserving unrelated service uptime and rollback images matters.
+
+## Mail Hero backup
+
+The independent `mailhero-backup` Compose service uses a pinned GHCR image and
+reuses the private config and state directories under `/home/xiziyi`. Mail Hero
+itself remains on Cloudflare. See [the backup runbook](mailhero-backup/README.md)
+for first-run recovery verification, the daily UTC schedule and scoped updates.
+Use `docker compose pull mailhero-backup` and
+`docker compose up -d --no-deps mailhero-backup`; a backup update does not require
+stopping the rest of this stack.
