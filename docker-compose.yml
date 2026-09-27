@@ -218,8 +218,8 @@ services:
 
   # * =============================================== todofy =============================================== * #
   todofy:
-    # GitHub CI: ziyixi/todofy commit 5f0e8c6232b24084a0fed99d975f4b2db5272235.
-    image: ghcr.io/ziyixi/todofy@sha256:0892e7087bc624cb92d50a4cf92594297f4058403f41c50484dd1858e3998b5b
+    # GitHub CI: ziyixi/todofy commit 6c46ed4f4508950f73456b199d4f6ac175ef533f.
+    image: ghcr.io/ziyixi/todofy@sha256:78e300ae68026bb8fde3d8a12d8c4038996e57183bbc1a197b1b8a9ed06b91f8
     container_name: todofy
     ports:
       - "10003:8080"
