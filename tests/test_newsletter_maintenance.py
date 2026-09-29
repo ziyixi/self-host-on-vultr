@@ -156,7 +156,7 @@ class MaintenanceBoundaryTests(unittest.TestCase):
         rows = [
             [{"Service": "newsletter", "State": "paused"}],
             [{"Service": "newsletter", "State": "restarting"}],
-            [{"Service": "todofy", "State": "running"}],
+            [{"Service": "stirling", "State": "running"}],
             [{"Service": "newsletter", "State": "running"}] * 2,
         ]
         for row in rows:

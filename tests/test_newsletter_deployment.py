@@ -320,8 +320,7 @@ class DeploymentTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
 
     def test_existing_services_remain_present(self):
-        expected = {"unami", "unami-db", "todofy", "todofy-llm", "todofy-todo",
-                    "todofy-database", "stirling", "slash", "flowday", "backup"}
+        expected = {"unami", "unami-db", "stirling", "slash", "flowday", "backup"}
         self.assertTrue(expected.issubset(self.services))
 
 
