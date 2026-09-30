@@ -8,7 +8,7 @@ networks:
   mailhero-backup:
 
 # Replace only with a tested, immutable newsletter image when upgrading.
-x-newsletter-image: &newsletter-image ghcr.io/ziyixi/newsletter@sha256:a36ab4fa6217df7ac2221b8b836f4066d9a220f9bfc11a9a1e612f28c9e2bb44
+x-newsletter-image: &newsletter-image ghcr.io/ziyixi/newsletter@sha256:6cbdc7bce43280f20bcea56e5b8deed1e1eaee0ba473685dc7513541ff0fc760
 
 volumes: {}
 
